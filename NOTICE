@@ -1,0 +1,36 @@
+T3 Code Mobile <Client>
+=======================
+
+This project is a fork of "opencode-mobile-client".
+
+  Upstream:  https://github.com/bmpenuelas/opencode-mobile-client
+  License:   MIT
+  Copyright: (c) 2026 Borja Penuelas
+
+The upstream project is a native Android/iOS client that renders the OpenCode
+web UI in a WebView. This fork retargets that client at T3 Code
+(https://t3.codes), the open-source control plane for coding agents by
+T3 Tools Inc., which is itself MIT-licensed:
+
+  T3 Code:   https://github.com/pingdotgg/t3code
+
+Changes made in this fork
+-------------------------
+
+  * Replaced HTTP Basic authentication with T3 Code pairing tokens
+    (parsed from `t3 pair` output, opened via the server's /pair route).
+  * Added a T3 Connect entry point that opens https://app.t3.codes.
+  * Health checks now target the T3 Code server root.
+  * Removed OpenCode-specific WebView injections (composer/sidebar fixes,
+    error hiding, enter=newline selector) and the demo-mode mock.
+  * Rebranded the application (app id com.logicedge.t3codemobile, name
+    "T3 Code Mobile", icons and splash screens from T3 Code's own artwork).
+  * Retained the upstream device downloads/clipboard handling and
+    external-link handling.
+
+The T3 Code name, logo and icon are the property of T3 Tools Inc. This fork is
+an unofficial, community project and is not endorsed by or affiliated with
+either T3 Tools Inc. or the opencode-mobile-client authors.
+
+Both the upstream work and this fork are distributed under the MIT license;
+see LICENSE. The upstream copyright notice is retained as required.

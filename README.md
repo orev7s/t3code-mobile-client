@@ -6,6 +6,12 @@ Drive your coding agents (Claude Code, Codex, OpenCode, Cursor, and more) from y
 
 > This is an independent, community project. It is **not** an official T3 Code app. T3 Code itself is MIT-licensed and lives at [pingdotgg/t3code](https://github.com/pingdotgg/t3code).
 
+## This is a fork
+
+This repository is a **fork** of [bmpenuelas/opencode-mobile-client](https://github.com/bmpenuelas/opencode-mobile-client) — the OpenCode mobile client, MIT-licensed, © Borja Peñuelas — retargeted to control [T3 Code](https://t3.codes) servers instead of OpenCode.
+
+The application shell, native Android/iOS integration, and much of the WebView tooling are inherited from that project. The T3-specific work in this fork is: pairing-token authentication, the T3 Connect entry point, the T3 server health check, T3 branding/icons, and the removal of OpenCode-only DOM injections. See [NOTICE](NOTICE) for the full attribution.
+
 ---
 
 ## Features
