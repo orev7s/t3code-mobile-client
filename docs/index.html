@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="opencode-mobile-client-logo-dark.svg"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="description"
+      content="OpenCode Mobile Client — a lightweight mobile client that wraps the OpenCode Web UI for native Android and iOS."
+    />
+    <title>OpenCode Mobile &lt;Client&gt;</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0d0d0d;
+        --surface: #141414;
+        --border: #222;
+        --text: #d4d4d4;
+        --text-dim: #888;
+        --accent: #26a69a;
+        --accent-hover: #2bbbad;
+        --code-bg: #1a1a1a;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        --mono:
+          "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", "Cascadia Code",
+          Consolas, monospace;
+        --max-w: 720px;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 16px;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .container {
+        max-width: var(--max-w);
+        margin: 0 auto;
+        padding: 3rem 1.5rem 4rem;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 3rem;
+      }
+
+      header img {
+        height: 60px;
+        margin-top: 5rem;
+        margin-bottom: 1rem;
+      }
+
+      header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.4rem;
+      }
+
+      header p {
+        color: var(--text-dim);
+        font-size: 0.95rem;
+      }
+
+      section {
+        margin-top: 2.5rem;
+      }
+
+      h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        letter-spacing: -0.01em;
+      }
+
+      h2 .alert {
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      p {
+        margin-bottom: 1rem;
+      }
+
+      ul.features {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      ul.features li {
+        padding: 0.75rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 0.9rem;
+      }
+
+      .code-block {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+        margin: 0.75rem 0 1.25rem;
+      }
+
+      .code-block code {
+        font-family: var(--mono);
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: #c9d1d9;
+        white-space: pre;
+      }
+
+      .comment {
+        color: #8b949e !important;
+        font-style: italic;
+        padding-left: 8px;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 2.5rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .links a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.6rem 1.2rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
+      }
+
+      .links a:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .links a.primary {
+        background: var(--accent);
+        color: #000;
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+
+      .links a.primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+      }
+
+      footer {
+        margin-top: 3rem;
+        text-align: center;
+        font-size: 0.8rem;
+        color: var(--text-dim);
+      }
+
+      hr {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 2rem 0;
+      }
+
+      blockquote {
+        border-left: 3px solid var(--accent);
+        padding: 0.75rem 1rem;
+        margin: 1rem 0;
+        background: var(--surface);
+        border-radius: 0 8px 8px 0;
+        font-size: 0.9rem;
+        color: var(--text-dim);
+      }
+
+      .ribbon {
+        position: fixed;
+        top: 0;
+        right: 0;
+        transform: rotate(45deg) translateX(30%) translateY(-50%);
+        transform-origin: center;
+        background: var(--accent);
+        color: #121212;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 0.25rem 2rem;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        z-index: 1000;
+        user-select: none;
+        text-align: center;
+        line-height: 1;
+        text-decoration: none;
+      }
+
+      @media (max-width: 540px) {
+        .container {
+          padding: 2rem 1rem 3rem;
+        }
+        header h1 {
+          font-size: 1.4rem;
+        }
+        .links {
+          flex-direction: column;
+        }
+        .links a {
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a
+      href="https://github.com/bmpenuelas/opencode-mobile-client"
+      class="ribbon"
+      >non-official<br />community project</a
+    >
+    <div class="container">
+      <header>
+        <picture>
+          <source
+            srcset="opencode-mobile-client-logo-dark.svg"
+            media="(prefers-color-scheme: dark)"
+          />
+          <img
+            src="opencode-mobile-client-logo-light.svg"
+            alt="OpenCode Mobile"
+          />
+        </picture>
+        <h1>OpenCode Mobile &lt;Client&gt;</h1>
+        <p>connect to your OpenCode servers on the go</p>
+      </header>
+
+      <section>
+        <p>
+          💫 A lightweight mobile client that wraps the
+          <a
+            href="https://opencode.ai/docs/web/"
+            style="color: var(--accent); text-decoration: none"
+            >OpenCode Web</a
+          >
+          UI as native Android and iOS apps. Connects to an already-running
+          OpenCode server over LAN or VPN / Tailscale.
+          <br />
+          <br />
+          Chat with the agent on your phone while the agent and the server run
+          on your computer and edit code and use all the tools available on it.
+          🖥️
+        </p>
+      </section>
+
+      <section style="text-align: center">
+        <p>
+          🔃 Seamlessly continue sessions started on your computer from your
+          phone, or vice versa. Available on
+          <a
+            href="https://play.google.com/store/apps/details?id=com.logicedge.opencodemobile"
+            style="color: var(--accent); text-decoration: none"
+            >Android</a
+          >,
+          <a
+            href="https://apps.apple.com/app/id6787161501"
+            style="color: var(--accent); text-decoration: none"
+            >iOS</a
+          >
+          and
+          <a
+            href="https://marketplace.visualstudio.com/items?itemName=bmpenuelas.opencode-web-sidebar"
+            style="color: var(--accent); text-decoration: none"
+            >VS Code</a
+          >
+        </p>
+        <div
+          style="
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+          "
+        >
+          <a
+            href="https://play.google.com/store/apps/details?id=com.logicedge.opencodemobile"
+            ><img
+              src="install_google_play_color_light.png"
+              alt="install Android"
+              style="height: 60px"
+          /></a>
+          <a href="https://apps.apple.com/app/id6787161501"
+            ><img
+              src="install_app_store_color_light.png"
+              alt="install iOS"
+              style="height: 60px"
+          /></a>
+          <a
+            href="https://marketplace.visualstudio.com/items?itemName=bmpenuelas.opencode-web-sidebar"
+            ><img
+              src="install_vscode_color_light.png"
+              alt="install VS Code"
+              style="height: 60px"
+          /></a>
+        </div>
+      </section>
+
+      <section>
+        <h2>Features</h2>
+        <ul class="features">
+          <li>
+            🌐 Connect to any OpenCode server over HTTP/HTTPS (LAN or VPN /
+            Tailscale when you're away from home🚶)
+          </li>
+          <li>
+            ⌨️ Toggleable Enter=newline mode (Enter inserts a newline,
+            Shift+Enter sends the prompt)
+          </li>
+          <li>📱 Injects narrow-screen fixes to the stock OpenCode web UI</li>
+          <li>📋 Multiple server profiles with auto-connect support</li>
+          <li>
+            🔑 Basic Auth support (matching OpenCode's
+            <code>OPENCODE_SERVER_PASSWORD</code>)
+          </li>
+          <li>
+            🎛️ Pull-down menu for server management while connected. Pull to
+            refresh, tap ⋮ to open menu.
+          </li>
+          <li>❤️ Automatic health checks with exponential reconnect</li>
+          <li>
+            🔒 Secure storage for passwords (Keychain /
+            EncryptedSharedPreferences)
+          </li>
+          <li>
+            🌓 Dark theme with light theme support
+            (<code>prefers-color-scheme</code>)
+          </li>
+        </ul>
+        <div
+          style="
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+          "
+        >
+          <img
+            src="screenshots/android/play-store-01-landing.png"
+            alt="Landing"
+            style="
+              width: 30%;
+              max-width: 200px;
+              border-radius: 12px;
+              border: 1px solid var(--border);
+            "
+          />
+          <img
+            src="screenshots/android/play-store-04-connected.png"
+            alt="Connected session"
+            style="
+              width: 30%;
+              max-width: 200px;
+              border-radius: 12px;
+              border: 1px solid var(--border);
+            "
+          />
+          <img
+            src="screenshots/android/play-store-05-pull-menu.png"
+            alt="Pull menu"
+            style="
+              width: 30%;
+              max-width: 200px;
+              border-radius: 12px;
+              border: 1px solid var(--border);
+            "
+          />
+        </div>
+      </section>
+
+      <hr />
+
+      <section>
+        <h2>
+          How to start your OpenCode Server
+          <span class="alert">(REQUIRED TO USE THE APP❗)</span>
+        </h2>
+        <p>
+          The app is a client that connects to a OpenCode web server running on
+          the machine where you have your code and build tools. It needs a
+          running web server to connect to.
+        </p>
+
+        <h3
+          style="
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            margin-top: 1.5rem;
+          "
+        >
+          No authentication
+        </h3>
+        <div class="code-block">
+          <code class="comment"># start a server without password </code>
+          <br />
+          <code> opencode web --hostname 0.0.0.0 --port 4096 </code>
+        </div>
+
+        <h3
+          style="
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            margin-top: 1.5rem;
+          "
+        >
+          With authentication
+          <span style="color: var(--text-dim); font-weight: 400"
+            >(recommended)</span
+          >
+        </h3>
+        <div class="code-block">
+          <code>export OPENCODE_SERVER_PASSWORD="your-secret-password" </code>
+          <br />
+          <code>opencode serve --hostname 0.0.0.0 --port 4096</code>
+        </div>
+        <blockquote>
+          When auth is enabled, the username defaults to
+          <code>opencode</code> in the app.
+        </blockquote>
+      </section>
+
+      <div class="links">
+        <a
+          href="https://github.com/bmpenuelas/opencode-mobile-client"
+          class="primary"
+          >View on GitHub</a
+        >
+        <a
+          href="https://github.com/bmpenuelas/opencode-mobile-client/blob/main/README.md"
+          >README</a
+        >
+        <a href="privacy-policy.html">Privacy Policy</a>
+      </div>
+
+      <footer>
+        Unofficial community project &mdash; not affiliated with OpenCode.<br />
+        MIT License
+      </footer>
+    </div>
+  </body>
+</html>

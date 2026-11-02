@@ -1,0 +1,176 @@
+import groovy.json.JsonSlurper
+import java.io.File
+
+apply plugin: 'com.android.application'
+
+def packageJson = new JsonSlurper().parse(file('../../package.json'))
+def rawPackageVersion = packageJson.version ?: '0.0.0'
+def semverMatcher = (rawPackageVersion =~ /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/)
+
+if (!semverMatcher.matches()) {
+    throw new GradleException("package.json version '${rawPackageVersion}' is not valid semver")
+}
+
+def majorVersion = semverMatcher[0][1] as Integer
+def minorVersion = semverMatcher[0][2] as Integer
+def patchVersion = semverMatcher[0][3] as Integer
+def androidVersionName = "${majorVersion}.${minorVersion}.${patchVersion}"
+
+if (minorVersion > 999 || patchVersion > 999) {
+    throw new GradleException(
+        "package.json version '${rawPackageVersion}' exceeds the supported minor/patch range for generated Android versionCode"
+    )
+}
+
+def androidVersionCode = Math.max(1, (majorVersion * 1000000) + (minorVersion * 1000) + patchVersion)
+def keystoreProperties = [:]
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.eachLine('UTF-8') { rawLine ->
+        def line = rawLine.trim()
+        if (!line || line.startsWith('#') || line.startsWith('!')) {
+            return
+        }
+
+        def separatorIndex = line.indexOf('=')
+        if (separatorIndex < 0) {
+            separatorIndex = line.indexOf(':')
+        }
+
+        if (separatorIndex < 0) {
+            return
+        }
+
+        def key = line.substring(0, separatorIndex).trim()
+        def value = line.substring(separatorIndex + 1).trim()
+        keystoreProperties[key] = value
+    }
+}
+
+def resolveSigningValue = { propertyName, envName ->
+    def envValue = System.getenv(envName)
+    if (envValue) {
+        return envValue
+    }
+
+    return keystoreProperties[propertyName]
+}
+
+def resolveStoreFile = { pathValue ->
+    if (!pathValue) {
+        return null
+    }
+
+    def normalizedPathValue = pathValue.trim().replace('/', File.separator).replace('\\', File.separator)
+    def looksAbsolute = normalizedPathValue ==~ /^[A-Za-z]:[\\\/].*/ || normalizedPathValue.startsWith('\\\\') || normalizedPathValue.startsWith('//')
+    if (looksAbsolute) {
+        return new File(normalizedPathValue)
+    }
+
+    return rootProject.file(normalizedPathValue)
+}
+
+def resolveSdkVersion = { propertyName, defaultValue ->
+    def configuredValue = rootProject.ext.has(propertyName) ? rootProject.ext.get(propertyName) : null
+    return configuredValue ?: defaultValue
+}
+
+def compileSdkVersionValue = resolveSdkVersion('compileSdkVersion', 36)
+def minSdkVersionValue = resolveSdkVersion('minSdkVersion', 24)
+def targetSdkVersionValue = resolveSdkVersion('targetSdkVersion', compileSdkVersionValue)
+
+def releaseStoreFileValue = resolveSigningValue('storeFile', 'ANDROID_KEYSTORE_FILE')
+def releaseStorePassword = resolveSigningValue('storePassword', 'ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = resolveSigningValue('keyAlias', 'ANDROID_KEY_ALIAS')
+def releaseKeyPassword = resolveSigningValue('keyPassword', 'ANDROID_KEY_PASSWORD')
+def releaseStoreFile = resolveStoreFile(releaseStoreFileValue)
+def releaseStoreFileExists = releaseStoreFile?.exists() ?: false
+def releaseSigningReady = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+].every { it }
+def releaseTasksRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+
+if (releaseTasksRequested) {
+    if (!releaseSigningReady) {
+        throw new GradleException(
+            "Release signing is not configured. Create android/keystore.properties from android/keystore.properties.example or set ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD."
+        )
+    }
+
+    if (!releaseStoreFileExists) {
+        throw new GradleException("Configured release keystore '${releaseStoreFile}' does not exist")
+    }
+}
+
+android {
+    namespace = "com.logicedge.opencodemobile"
+    compileSdk = compileSdkVersionValue
+    signingConfigs {
+        if (releaseSigningReady && releaseStoreFileExists) {
+            release {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+    defaultConfig {
+        applicationId "com.logicedge.opencodemobile"
+        minSdkVersion minSdkVersionValue
+        targetSdkVersion targetSdkVersionValue
+        versionCode androidVersionCode
+        versionName androidVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            if (releaseSigningReady && releaseStoreFileExists) {
+                signingConfig signingConfigs.release
+            }
+            ndk {
+                debugSymbolLevel 'SYMBOL_TABLE'
+            }
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
