@@ -21,7 +21,7 @@ describe('external link bridge', () => {
 
   it('ignores messages from the notification bridge', () => {
     expect(parseExternalLinkUrl({
-      type: 'opencode:web-notification',
+      type: 't3code:web-notification',
       title: 'Done',
     })).toBeNull()
   })

@@ -9,7 +9,7 @@
 -keep class com.aparajita.capacitor.securestorage.** { *; }
 
 # Keep app entry point
--keep class com.logicedge.opencodemobile.MainActivity { *; }
+-keep class com.logicedge.t3codemobile.MainActivity { *; }
 
 # Keep @JavascriptInterface methods (safety net for WebView bridges)
 -keepclassmembers class * {

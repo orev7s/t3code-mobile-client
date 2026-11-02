@@ -17,26 +17,31 @@
           </div>
           <div class="flex flex-col gap-1.5">
             <Label for="baseUrl" class="text-center justify-center">{{ t('form.url') }}</Label>
-            <Input id="baseUrl" v-model="form.baseUrl" type="url" placeholder="http://192.168.1.100:4096" inputmode="url" required />
+            <Input id="baseUrl" v-model="form.baseUrl" type="url" placeholder="http://192.168.1.100:3773" inputmode="url" required />
             <p v-if="urlWarning" class="text-xs text-muted-foreground">{{ urlWarning }}</p>
             <p v-if="urlError" class="text-xs text-destructive">{{ urlError }}</p>
           </div>
         </CardContent>
         <CardFooter class="flex-col items-stretch gap-4">
           <div class="flex items-center gap-2">
-            <Switch id="auth" v-model="form.authEnabled" />
-            <Label for="auth">{{ t('form.authentication') }}</Label>
+            <Switch id="pairing" v-model="form.pairingEnabled" />
+            <Label for="pairing">{{ t('form.pairing') }}</Label>
           </div>
-          <template v-if="form.authEnabled">
-            <div class="flex flex-col gap-1.5">
-              <Input id="username" v-model="form.username" placeholder="username" />
-            </div>
+          <template v-if="form.pairingEnabled">
             <div class="flex flex-col gap-1.5">
               <div class="flex gap-1 items-center">
-                <Input id="password" :type="showPassword ? 'text' : 'password'" v-model="form.password" placeholder="password" class="flex-1" />
-                <Button v-if="form.password" type="button" variant="ghost" size="icon" @click="form.password = ''">&times;</Button>
-                <Button type="button" variant="outline" size="xs" @click="showPassword = !showPassword">{{ showPassword ? t('form.hide') : t('form.show') }}</Button>
+                <Input
+                  id="pairingToken"
+                  :type="showToken ? 'text' : 'password'"
+                  v-model="form.pairingToken"
+                  :placeholder="t('form.pairingPlaceholder')"
+                  class="flex-1"
+                />
+                <Button v-if="form.pairingToken" type="button" variant="ghost" size="icon" @click="form.pairingToken = ''">&times;</Button>
+                <Button type="button" variant="outline" size="xs" @click="showToken = !showToken">{{ showToken ? t('form.hide') : t('form.show') }}</Button>
               </div>
+              <p class="text-xs text-muted-foreground">{{ t('form.pairingHint') }}</p>
+              <p v-if="tokenError" class="text-xs text-destructive">{{ tokenError }}</p>
             </div>
           </template>
           <div class="flex items-center gap-2">
@@ -69,8 +74,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useServerStore } from '@/stores/serverStore'
-import { normalizeUrl, validateUrl } from '@/services/opencode/url'
-import { isDemoModeCredentials } from '@/services/opencode/demoMode'
+import { normalizeUrl, validateUrl } from '@/services/t3code/url'
+import { parsePairingInput } from '@/services/t3code/pairing'
 import type { ServerProfile } from '@/types'
 import { useI18n } from '@/i18n'
 
@@ -84,41 +89,44 @@ const profileId = computed(() => route.params.id as string)
 
 const form = ref({
   name: serverStore.profiles.length === 0 ? `Server#1` : '',
-  baseUrl: 'http://192.168.1.xxx:4096',
-  authEnabled: false,
-  username: 'opencode',
-  password: '',
+  baseUrl: 'http://192.168.1.xxx:3773',
+  pairingEnabled: false,
+  pairingToken: '',
   isDefault: serverStore.profiles.length === 0,
   allowInsecureHttp: true,
 })
 
-const showPassword = ref(false)
+const showToken = ref(false)
 const saving = ref(false)
 const formError = ref('')
 const urlError = ref('')
 const urlWarning = ref('')
+const tokenError = ref('')
 
-function isDemoCredentialsInForm(): boolean {
-  return form.value.authEnabled && isDemoModeCredentials({
-    username: form.value.username,
-    password: form.value.password,
-  })
+function refreshUrlFeedback(): void {
+  urlError.value = ''; urlWarning.value = ''
+  const result = validateUrl(form.value.baseUrl)
+  if (!result.valid) urlError.value = result.error ?? t('form.invalidUrl')
+  else if (result.error) urlWarning.value = result.error
 }
 
-watch(() => form.value.baseUrl, () => {
-  urlError.value = ''; urlWarning.value = ''
-  if (isDemoCredentialsInForm()) return
-  const result = validateUrl(form.value.baseUrl)
-  if (!result.valid) urlError.value = result.error ?? t('form.invalidUrl')
-  else if (result.error) urlWarning.value = result.error
-})
+watch(() => form.value.baseUrl, refreshUrlFeedback)
 
-watch(() => [form.value.authEnabled, form.value.username, form.value.password], () => {
-  urlError.value = ''; urlWarning.value = ''
-  if (isDemoCredentialsInForm()) return
-  const result = validateUrl(form.value.baseUrl)
-  if (!result.valid) urlError.value = result.error ?? t('form.invalidUrl')
-  else if (result.error) urlWarning.value = result.error
+// Accept either a bare token or a full pairing URL; when a URL is pasted, pull
+// the server address out of it too.
+watch(() => form.value.pairingToken, () => {
+  tokenError.value = ''
+  const raw = form.value.pairingToken.trim()
+  if (!raw) return
+  const parsed = parsePairingInput(raw)
+  if (!parsed) {
+    tokenError.value = t('form.invalidToken')
+    return
+  }
+  if (parsed.baseUrl) {
+    form.value.baseUrl = parsed.baseUrl
+    refreshUrlFeedback()
+  }
 })
 
 onMounted(async () => {
@@ -128,12 +136,12 @@ onMounted(async () => {
     const profile = serverStore.profiles.find((p: ServerProfile) => p.id === profileId.value)
     if (profile) {
       form.value.name = profile.name; form.value.baseUrl = profile.baseUrl
-      form.value.authEnabled = profile.authEnabled; form.value.username = profile.username
+      form.value.pairingEnabled = profile.pairingEnabled
       form.value.isDefault = profile.isDefault
       form.value.allowInsecureHttp = profile.allowInsecureHttp
-      if (profile.authEnabled) {
-        const pw = await serverStore.getPassword(profile.id)
-        if (pw) form.value.password = pw
+      if (profile.pairingEnabled) {
+        const token = await serverStore.getPairingToken(profile.id)
+        if (token) form.value.pairingToken = token
       }
     } else { goBack() }
   } else if (serverStore.profiles.length > 0) {
@@ -145,34 +153,43 @@ onMounted(async () => {
 async function handleSubmit(): Promise<void> {
   formError.value = ''
   if (!form.value.name.trim()) { formError.value = t('form.nameRequired'); return }
-  const demoCredentials = isDemoCredentialsInForm()
-  if (!demoCredentials) {
-    const urlResult = validateUrl(form.value.baseUrl)
-    if (!urlResult.valid) { formError.value = urlResult.error ?? t('form.invalidUrl'); return }
+  const urlResult = validateUrl(form.value.baseUrl)
+  if (!urlResult.valid) { formError.value = urlResult.error ?? t('form.invalidUrl'); return }
+
+  const tokenInput = form.value.pairingToken.trim()
+  if (form.value.pairingEnabled && tokenInput && !parsePairingInput(tokenInput)) {
+    formError.value = t('form.invalidToken'); return
   }
 
   saving.value = true
   try {
     const data = {
       name: form.value.name.trim(),
-      baseUrl: demoCredentials ? form.value.baseUrl.trim() : normalizeUrl(form.value.baseUrl),
-      authEnabled: form.value.authEnabled,
-      username: form.value.authEnabled ? form.value.username || 'opencode' : 'opencode',
+      baseUrl: normalizeUrl(form.value.baseUrl),
+      pairingEnabled: form.value.pairingEnabled,
       isDefault: form.value.isDefault,
       allowInsecureHttp: form.value.allowInsecureHttp || true,
       lastStatus: 'unknown' as const, lastConnectedAt: null,
     }
     if (isEdit.value) {
       await serverStore.update(profileId.value, data)
-      if (form.value.authEnabled && form.value.password) await serverStore.setPassword(profileId.value, form.value.password)
-      else if (!form.value.authEnabled) await serverStore.deletePassword(profileId.value)
+      await saveToken(profileId.value)
     } else {
       const profile = await serverStore.add(data)
-      if (form.value.authEnabled && form.value.password) await serverStore.setPassword(profile.id, form.value.password)
+      await saveToken(profile.id)
     }
     goBack()
   } catch (err: any) { formError.value = err?.message ?? t('form.saveFailed') }
   finally { saving.value = false }
+}
+
+async function saveToken(id: string): Promise<void> {
+  const token = form.value.pairingToken.trim()
+  if (form.value.pairingEnabled && token) {
+    await serverStore.setPairingToken(id, parsePairingInput(token)?.token ?? token)
+  } else {
+    await serverStore.deletePairingToken(id)
+  }
 }
 
 function goBack(): void { router.push('/servers') }

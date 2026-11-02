@@ -1,11 +1,11 @@
 import type { SecretStorageAdapter } from './secureSecretStorage'
 
-const PREFIX = 'opencode_dev_pw_'
+const PREFIX = 't3code_dev_pair_'
 
 function warnDev(): void {
   console.warn(
-    '[OpenCode Mobile Client] Using WEB DEV fallback storage for secrets. ' +
-    'Passwords are stored in localStorage (insecure). ' +
+    '[T3 Code Mobile Client] Using WEB DEV fallback storage for secrets. ' +
+    'Pairing tokens are stored in localStorage (insecure). ' +
     'This is only suitable for development. ' +
     'On native builds, @aparajita/capacitor-secure-storage is used.'
   )
@@ -18,7 +18,7 @@ function isDevelopment(): boolean {
 }
 
 export const webDevSecretStorage: SecretStorageAdapter = {
-  async getPassword(profileId: string): Promise<string | null> {
+  async getSecret(profileId: string): Promise<string | null> {
     if (isDevelopment()) {
       warnDev()
     }
@@ -29,18 +29,18 @@ export const webDevSecretStorage: SecretStorageAdapter = {
     }
   },
 
-  async setPassword(profileId: string, password: string): Promise<void> {
+  async setSecret(profileId: string, secret: string): Promise<void> {
     if (isDevelopment()) {
       warnDev()
     }
     try {
-      localStorage.setItem(`${PREFIX}${profileId}`, password)
+      localStorage.setItem(`${PREFIX}${profileId}`, secret)
     } catch {
       // storage full or unavailable
     }
   },
 
-  async deletePassword(profileId: string): Promise<void> {
+  async deleteSecret(profileId: string): Promise<void> {
     if (isDevelopment()) {
       warnDev()
     }

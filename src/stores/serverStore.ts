@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import type { ServerProfile } from '@/types'
 import { profileStorage } from '@/services/storage/profileStorage'
 import { getSecretStorage } from '@/services/storage'
-import { checkServerHealth } from '@/services/opencode/health'
+import { checkServerHealth } from '@/services/t3code/health'
 
 export const useServerStore = defineStore('server', () => {
   const profiles = ref<ServerProfile[]>([])
@@ -52,7 +52,7 @@ export const useServerStore = defineStore('server', () => {
 
   async function remove(id: string): Promise<boolean> {
     const secretStorage = getSecretStorage()
-    await secretStorage.deletePassword(id)
+    await secretStorage.deleteSecret(id)
     const result = await profileStorage.deleteProfile(id)
     if (result) {
       const index = profiles.value.findIndex((p: ServerProfile) => p.id === id)
@@ -84,32 +84,26 @@ export const useServerStore = defineStore('server', () => {
     return updated
   }
 
-  async function getPassword(profileId: string): Promise<string | null> {
+  async function getPairingToken(profileId: string): Promise<string | null> {
     const secretStorage = getSecretStorage()
-    return secretStorage.getPassword(profileId)
+    return secretStorage.getSecret(profileId)
   }
 
-  async function setPassword(profileId: string, password: string): Promise<void> {
+  async function setPairingToken(profileId: string, token: string): Promise<void> {
     const secretStorage = getSecretStorage()
-    await secretStorage.setPassword(profileId, password)
+    await secretStorage.setSecret(profileId, token)
   }
 
-  async function deletePassword(profileId: string): Promise<void> {
+  async function deletePairingToken(profileId: string): Promise<void> {
     const secretStorage = getSecretStorage()
-    await secretStorage.deletePassword(profileId)
+    await secretStorage.deleteSecret(profileId)
   }
 
   async function checkAllServers(): Promise<void> {
     const healthResults = await Promise.allSettled(
-      profiles.value.map(async (profile) => {
-        const password = profile.authEnabled ? await getPassword(profile.id) : null
-        return checkServerHealth({
-          baseUrl: profile.baseUrl,
-          username: profile.authEnabled ? profile.username : undefined,
-          password: profile.authEnabled && password ? password : undefined,
-          timeoutMs: 3500,
-        })
-      })
+      profiles.value.map((profile) =>
+        checkServerHealth({ baseUrl: profile.baseUrl, timeoutMs: 3500 })
+      )
     )
 
     let changed = false
@@ -156,9 +150,9 @@ export const useServerStore = defineStore('server', () => {
     remove,
     duplicate,
     setDefault,
-    getPassword,
-    setPassword,
-    deletePassword,
+    getPairingToken,
+    setPairingToken,
+    deletePairingToken,
     checkAllServers,
   }
 })

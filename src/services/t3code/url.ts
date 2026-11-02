@@ -35,7 +35,7 @@ export function validateUrl(url: string): ValidationResult {
     }
 
     if (parsed.username || parsed.password) {
-      return { valid: false, error: 'Embedded credentials in URL are not allowed. Use the separate auth fields instead.' }
+      return { valid: false, error: 'Embedded credentials in URL are not allowed. Use the pairing token field instead.' }
     }
 
     if (parsed.protocol === 'http:' && !isLocalOrPrivateHost(parsed.hostname)) {
@@ -76,21 +76,11 @@ export function sanitizeUrlForDisplay(url: string): string {
   }
 }
 
-export function buildIframeUrl(baseUrl: string, username?: string, password?: string): string {
-  const normalized = normalizeUrl(baseUrl)
-  if (!username || !password) {
-    return normalized + '/'
-  }
-  try {
-    const parsed = new URL(normalized)
-    parsed.username = encodeURIComponent(username)
-    parsed.password = encodeURIComponent(password)
-    return parsed.toString().replace(/\/+$/, '') + '/'
-  } catch {
-    return normalized + '/'
-  }
-}
-
-export function buildIframeUrlSanitized(baseUrl: string, _username?: string, _password?: string): string {
-  return sanitizeUrlForDisplay(buildIframeUrl(baseUrl, _username, _password))
+/**
+ * True when an HTTP (not HTTPS) server address is either on a private/local
+ * network or an explicit, user-accepted exception. T3 Code servers commonly run
+ * on LAN/VPN without TLS, so this gates a warning rather than blocking.
+ */
+export function isPrivateHostname(hostname: string): boolean {
+  return isLocalOrPrivateHost(hostname)
 }

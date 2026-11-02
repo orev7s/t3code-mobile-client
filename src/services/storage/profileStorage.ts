@@ -1,7 +1,7 @@
 import { Preferences } from '@capacitor/preferences'
 import type { ServerProfile } from '@/types'
 
-const PROFILES_KEY = 'opencode_server_profiles'
+const PROFILES_KEY = 't3code_server_profiles'
 
 function generateId(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`

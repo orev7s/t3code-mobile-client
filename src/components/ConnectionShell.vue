@@ -1,10 +1,5 @@
 <template>
-  <DemoSessionMock
-    v-if="demoModeActive && profile"
-    :profile-name="profile.name"
-  />
-
-  <div v-else class="fixed inset-0 flex flex-col items-center justify-center z-[1] bg-background">
+  <div class="fixed inset-0 flex flex-col items-center justify-center z-[1] bg-background">
     <div v-if="loading" class="flex flex-col items-center gap-4">
       <div class="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-foreground" />
       <p class="text-sm text-muted-foreground">{{ t('connection.loading') }}</p>
@@ -24,7 +19,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import DemoSessionMock from '@/components/DemoSessionMock.vue'
 import { InAppBrowser, ToolBarType, BackgroundColor } from '@capgo/capacitor-inappbrowser'
 import type { DownloadCompletedEvent, DownloadFailedEvent } from '@capgo/capacitor-inappbrowser'
 import { Capacitor } from '@capacitor/core'
@@ -32,8 +26,7 @@ import { App } from '@capacitor/app'
 import { useServerStore } from '@/stores/serverStore'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { registerBackButton, unregisterBackButton } from '@/services/platform/backButton'
-import { buildIframeUrl } from '@/services/opencode/url'
-import { isDemoModeServer } from '@/services/opencode/demoMode'
+import { buildAppUrl, buildPairUrl } from '@/services/t3code/pairing'
 import { loadDeviceIntegrationSettings } from '@/services/platform/deviceIntegration'
 import { EXTERNAL_LINK_MESSAGE_TYPE, parseExternalLinkUrl } from '@/services/platform/externalLinks'
 import {
@@ -45,6 +38,10 @@ import {
 } from '@/services/platform/nativeNotifications'
 import { useI18n } from '@/i18n'
 
+/** Hosted T3 Code web app, used by the "T3 Connect" entry point. */
+const HOSTED_WEB_APP_URL = 'https://app.t3.codes'
+const APP_FALLBACK_TITLE = 'T3 Code'
+
 const route = useRoute()
 const router = useRouter()
 const serverStore = useServerStore()
@@ -55,8 +52,8 @@ const loading = ref(true)
 const errorText = ref('')
 
 const serverId = computed(() => route.params.id as string)
+const isHosted = computed(() => route.name === 'connect-hosted' || serverId.value === 'hosted')
 const profile = computed(() => serverStore.profiles.find(p => p.id === serverId.value))
-const demoModeActive = ref(false)
 
 let browserClosedHandle: any = null
 let pageLoadedHandle: any = null
@@ -82,12 +79,12 @@ function removeWebviewListeners(): void {
   downloadFailedHandle = null
 }
 
-const WEB_NOTIFICATION_PROMPT_RESPONSE_MESSAGE_TYPE = 'opencode:web-notification-prompt-response'
+const WEB_NOTIFICATION_PROMPT_RESPONSE_MESSAGE_TYPE = 't3code:web-notification-prompt-response'
 
 function buildNotificationBridgeScript(): string {
   return `(function(){
-    if(window.__oc_nativeNotificationBridge)return;
-    window.__oc_nativeNotificationBridge=true;
+    if(window.__t3_nativeNotificationBridge)return;
+    window.__t3_nativeNotificationBridge=true;
     function post(payload,attempt){
       var app=window.mobileApp;
       if(app&&typeof app.postMessage==='function'){
@@ -101,7 +98,7 @@ function buildNotificationBridgeScript(): string {
         options=options||{};
         post({
           type:'${WEB_NOTIFICATION_MESSAGE_TYPE}',
-          title:String(title||'OpenCode'),
+          title:String(title||'${APP_FALLBACK_TITLE}'),
           body:options.body?String(options.body):'',
           tag:options.tag?String(options.tag):'',
           icon:options.icon?String(options.icon):'',
@@ -110,7 +107,7 @@ function buildNotificationBridgeScript(): string {
       }catch(e){}
     }
     function MobileNotification(title,options){
-      this.title=String(title||'OpenCode');
+      this.title=String(title||'${APP_FALLBACK_TITLE}');
       this.body=options&&options.body?String(options.body):'';
       this.tag=options&&options.tag?String(options.tag):'';
       this.icon=options&&options.icon?String(options.icon):'';
@@ -156,8 +153,8 @@ function jsStringLiteral(value: string): string {
 
 function buildExternalLinkScript(): string {
   return `(function(){
-    if(window.__oc_externalLinks)return;
-    window.__oc_externalLinks=true;
+    if(window.__t3_externalLinks)return;
+    window.__t3_externalLinks=true;
     var origin=null;
     try{origin=window.location.origin;}catch(e){}
     function externalUrl(href){
@@ -185,8 +182,8 @@ function buildExternalLinkScript(): string {
 
 function buildDeviceClipboardScript(): string {
   return `(function(){
-    if(window.__oc_deviceClipboard)return;
-    window.__oc_deviceClipboard=true;
+    if(window.__t3_deviceClipboard)return;
+    window.__t3_deviceClipboard=true;
     function fallback(text){
       try{
         var area=document.createElement('textarea');
@@ -232,14 +229,14 @@ function buildDownloadToastScript(message: string, isError: boolean): string {
   const messageLiteral = jsStringLiteral(message)
   const background = isError ? 'rgba(120,24,24,.96)' : 'rgba(28,28,30,.96)'
   return `(function(){
-    var id='oc-device-toast';
+    var id='t3-device-toast';
     var old=document.getElementById(id);
     if(old)old.remove();
-    var style=document.getElementById('oc-device-toast-style');
+    var style=document.getElementById('t3-device-toast-style');
     if(!style){
       style=document.createElement('style');
-      style.id='oc-device-toast-style';
-      style.textContent='#oc-device-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:2147483647;max-width:82vw;padding:9px 14px;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;line-height:1.35;color:#fff;background:${background};box-shadow:0 8px 28px rgba(0,0,0,.45);transition:opacity .4s ease;word-break:break-word;}';
+      style.id='t3-device-toast-style';
+      style.textContent='#t3-device-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:2147483647;max-width:82vw;padding:9px 14px;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;line-height:1.35;color:#fff;background:${background};box-shadow:0 8px 28px rgba(0,0,0,.45);transition:opacity .4s ease;word-break:break-word;}';
       document.head.appendChild(style);
     }
     var toast=document.createElement('div');
@@ -259,14 +256,17 @@ async function showDownloadToast(message: string, isError: boolean): Promise<voi
   }
 }
 
+/**
+ * Injects the pull-down tab and its options panel into the host page. This is
+ * deliberately page-agnostic: it only wraps a page-level status chip around
+ * whatever the server renders below it.
+ */
 function buildToolbarScript(status: string, displayUrl: string): string {
   const dotColor =
     status === 'connected' ? '#30d158' :
     status === 'checking' || status === 'reconnecting' ? '#ffd60a' :
     status === 'disconnected' || status === 'unreachable' || status === 'wrong_credentials' || status === 'frame_blocked' ? '#ff453a' :
     '#8e8e8e'
-
-  const pulse = status === 'checking' || status === 'reconnecting'
 
   const statusLabel =
     status === 'connected' ? t('status.connected') :
@@ -283,272 +283,64 @@ function buildToolbarScript(status: string, displayUrl: string): string {
   const displayUrlLiteral = jsStringLiteral(displayUrl)
 
   return `(function(){
-    if(document.getElementById('oc-tab'))return;
+    if(document.getElementById('t3-tab'))return;
     var s=document.createElement('style');
-    s.textContent='#oc-tab{position:fixed;top:0;left:50%;--oc-pull-y:0px;transform:translate3d(-50%,var(--oc-pull-y),0);z-index:2147483647;cursor:pointer;background:#121212;color:rgba(255,255,255,.9);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;padding:3px 10px 2px;display:flex;align-items:center;gap:5px;user-select:none;white-space:nowrap;border:1px solid rgba(255,255,255,.7);border-top:none;border-radius:0 0 12px 12px;touch-action:none;will-change:transform}#oc-tab:before{content:"";position:absolute;left:-1px;right:-1px;bottom:calc(100% - 1px);height:140px;background:#121212;border-left:1px solid rgba(255,255,255,.7);border-right:1px solid rgba(255,255,255,.7);pointer-events:none}#oc-tab.oc-releasing{transition:transform .52s cubic-bezier(.16,1,.3,1)}#oc-tab.oc-hiding{transition:transform .9s cubic-bezier(.16,1,.3,1)}#oc-tab-label{position:relative;z-index:1}.oc-tab-spinner{position:absolute;left:50%;bottom:calc(100% + 5px);width:20px;height:20px;box-sizing:border-box;border:3px solid rgba(255,255,255,.28);border-top-color:rgba(255,255,255,.9);border-radius:50%;opacity:0;transform:translate3d(-50%,5px,0) scale(.5);transition:opacity .12s,transform .12s;z-index:1;pointer-events:none}#oc-tab.oc-pulling .oc-tab-spinner,#oc-tab.oc-refreshing .oc-tab-spinner{opacity:1;transform:translate3d(-50%,0,0) scale(1);animation:oc-spin .72s linear infinite}#oc-tab.oc-hiding .oc-tab-spinner{animation:none!important;opacity:0!important;transform:translate3d(-50%,5px,0) scale(.45)!important;transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}@keyframes oc-spin{to{transform:translate3d(-50%,0,0) scale(1) rotate(360deg)}}#oc-panel{position:fixed;top:38px;left:50%;transform:translateX(-50%);z-index:2147483647;display:none;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.5);font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-width:230px}#oc-panel.show{display:block}#oc-panel-status{display:flex;align-items:center;gap:8px;padding:12px 16px;font-size:12px;color:#8e8e8e;background:#2c2c2e}#oc-panel-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${dotColor}${pulse ? ';animation:oc-pulse 1.5s infinite' : ''}}@keyframes oc-pulse{0%,100%{opacity:1}50%{opacity:.4}}#oc-panel-url{margin-left:auto;font-size:11px;opacity:.6}#oc-panel-items{background:#1c1c1e}#oc-panel-items button{display:flex;align-items:center;gap:10px;width:100%;padding:8px 16px;border:none;background:transparent;color:#eee;text-align:left;font-size:14px;cursor:pointer;transition:background .15s}#oc-panel-items button:hover{background:rgba(255,255,255,.08)}#oc-panel-close{color:#ff453a!important}#oc-panel-close .oc-lbl{transform:translateY(2px)}#oc-panel-close:hover{background:rgba(255,69,58,.15)!important}.oc-ico{display:inline-flex;align-items:center;justify-content:center;width:32px;font-size:16px;line-height:1}.oc-ico-sm{font-size:11px}.oc-lbl{display:inline-block;line-height:1;padding-left:10px}#oc-panel-items button:nth-child(1) .oc-lbl{transform:translateY(1.5px)}#oc-panel-items button:nth-child(2) .oc-lbl{transform:translateY(2px)}#oc-panel-items button:nth-child(4) .oc-lbl{transform:translateY(1px)}#oc-panel-toggle{display:flex;align-items:center;gap:10px;width:100%;padding:8px 16px;background:transparent;color:#eee;font-size:14px;cursor:pointer}#oc-panel-toggle:hover{background:rgba(255,255,255,.08)}.oc-switch{position:relative;width:22px;height:14px;flex-shrink:0;display:inline-flex;align-items:center;background:#555;border-radius:7px;transition:.2s;cursor:pointer}.oc-switch .oc-knob{position:absolute;left:2px;top:2px;width:10px;height:10px;background:#fff;border-radius:50%;transition:.2s}#oc-panel-toggle input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}#oc-panel-toggle input:checked+.oc-switch,.oc-switch.oc-on{background:#888}#oc-panel-toggle input:checked+.oc-switch .oc-knob,.oc-switch.oc-on .oc-knob{transform:translateX(8px)}div[data-slot="tabs-trigger-wrapper"][data-value="servers"]{display:none!important}div[id$="-content-servers"]{display:none!important}#opencode-titlebar-right .bg-icon-success-base{display:none!important}';
+    s.textContent='#t3-tab{position:fixed;top:0;left:50%;--t3-pull-y:0px;transform:translate3d(-50%,var(--t3-pull-y),0);z-index:2147483647;cursor:pointer;background:#121212;color:rgba(255,255,255,.9);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;padding:3px 10px 2px;display:flex;align-items:center;gap:5px;user-select:none;white-space:nowrap;border:1px solid rgba(255,255,255,.7);border-top:none;border-radius:0 0 12px 12px;touch-action:none;will-change:transform}#t3-tab:before{content:"";position:absolute;left:-1px;right:-1px;bottom:calc(100% - 1px);height:140px;background:#121212;border-left:1px solid rgba(255,255,255,.7);border-right:1px solid rgba(255,255,255,.7);pointer-events:none}#t3-tab.t3-releasing{transition:transform .52s cubic-bezier(.16,1,.3,1)}#t3-tab.t3-hiding{transition:transform .9s cubic-bezier(.16,1,.3,1)}#t3-tab-label{position:relative;z-index:1}.t3-tab-spinner{position:absolute;left:50%;bottom:calc(100% + 5px);width:20px;height:20px;box-sizing:border-box;border:3px solid rgba(255,255,255,.28);border-top-color:rgba(255,255,255,.9);border-radius:50%;opacity:0;transform:translate3d(-50%,5px,0) scale(.5);transition:opacity .12s,transform .12s;z-index:1;pointer-events:none}#t3-tab.t3-pulling .t3-tab-spinner,#t3-tab.t3-refreshing .t3-tab-spinner{opacity:1;transform:translate3d(-50%,0,0) scale(1);animation:t3-spin .72s linear infinite}#t3-tab.t3-hiding .t3-tab-spinner{animation:none!important;opacity:0!important;transform:translate3d(-50%,5px,0) scale(.45)!important;transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}@keyframes t3-spin{to{transform:translate3d(-50%,0,0) scale(1) rotate(360deg)}}#t3-panel{position:fixed;top:38px;left:50%;transform:translateX(-50%);z-index:2147483647;display:none;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.5);font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-width:230px;background:#1c1c1e;color:#f5f5f7}#t3-panel.show{display:block}#t3-panel-status{display:flex;align-items:center;gap:6px;padding:9px 12px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.1)}#t3-panel-dot{width:8px;height:8px;border-radius:50%;background:${dotColor};flex:0 0 auto}#t3-panel-url{opacity:.55;margin-left:auto;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#t3-panel-items{display:flex;flex-direction:column;padding:4px}#t3-panel-items button,#t3-panel-toggle{appearance:none;border:0;background:transparent;color:inherit;font:inherit;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;text-align:left;cursor:pointer}#t3-panel-items button:active,#t3-panel-toggle:active{background:rgba(255,255,255,.1)}#t3-panel-toggle{cursor:pointer}.t3-ico{display:inline-flex;width:18px;justify-content:center;font-size:15px}.t3-ico-sm{font-size:13px}.t3-switch{position:relative;width:38px;height:22px;border-radius:11px;background:rgba(255,255,255,.25);transition:background .15s;flex:0 0 auto}.t3-switch.t3-on{background:#30d158}.t3-knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}.t3-switch.t3-on .t3-knob{transform:translateX(16px)}';
     document.head.appendChild(s);
-    var tab=document.createElement('div');tab.id='oc-tab';
-    var tabSpinner=document.createElement('span');tabSpinner.className='oc-tab-spinner';tabSpinner.setAttribute('aria-hidden','true');
-    var tabLabel=document.createElement('span');tabLabel.id='oc-tab-label';tabLabel.textContent='Options \\u22EE';
+    var tab=document.createElement('div');tab.id='t3-tab';
+    var tabSpinner=document.createElement('span');tabSpinner.className='t3-tab-spinner';tabSpinner.setAttribute('aria-hidden','true');
+    var tabLabel=document.createElement('span');tabLabel.id='t3-tab-label';tabLabel.textContent='Options \\u22EE';
     tab.appendChild(tabSpinner);tab.appendChild(tabLabel);
     document.body.appendChild(tab);
-    var panel=document.createElement('div');panel.id='oc-panel';
-    var statusRow=document.createElement('div');statusRow.id='oc-panel-status';
-    var dot=document.createElement('span');dot.id='oc-panel-dot';
+    var panel=document.createElement('div');panel.id='t3-panel';
+    var statusRow=document.createElement('div');statusRow.id='t3-panel-status';
+    var dot=document.createElement('span');dot.id='t3-panel-dot';
     var label=document.createElement('span');label.textContent=${statusLabelLiteral};
-    var urlSpan=document.createElement('span');urlSpan.id='oc-panel-url';urlSpan.textContent=${displayUrlLiteral};
+    var urlSpan=document.createElement('span');urlSpan.id='t3-panel-url';urlSpan.textContent=${displayUrlLiteral};
     statusRow.appendChild(dot);statusRow.appendChild(label);statusRow.appendChild(urlSpan);
     panel.appendChild(statusRow);
-    var items=document.createElement('div');items.id='oc-panel-items';
+    var items=document.createElement('div');items.id='t3-panel-items';
     var btns=[
       {i:'\\u21BB',l:${jsStringLiteral(t('common.refresh'))},a:'reload'},
       {i:'\\u2190',l:${jsStringLiteral(t('common.back'))},a:'back'},
       {i:'\\u2192',l:${jsStringLiteral(t('menu.forward'))},a:'forward'},
       {i:'\\u2197',l:${jsStringLiteral(t('menu.browser'))},a:'external'},
     ];
-    btns.forEach(function(b){var btn=document.createElement('button');var ico=document.createElement('span');ico.className='oc-ico'+(b.a==='forward'?' oc-ico-sm':'');ico.textContent=b.i;btn.appendChild(ico);var lbl=document.createElement('span');lbl.className='oc-lbl';lbl.textContent=b.l;btn.appendChild(lbl);btn.addEventListener('click',function(){panel.classList.remove('show');switch(b.a){case'external':window.open(window.location.href,'_system');break;case'reload':window.location.reload();break;case'back':window.history.back();break;case'forward':window.history.forward();break}});items.appendChild(btn)});
-    var tr=document.createElement('label');tr.id='oc-panel-toggle';
-    var cb=document.createElement('input');cb.type='checkbox';cb.id='oc-enter-toggle';
-    var enterNewline=localStorage.getItem('oc_enter_newline');
-    if(enterNewline!=='0'&&enterNewline!=='1'){enterNewline='1';localStorage.setItem('oc_enter_newline','1')}
-    var sd=document.createElement('span');sd.className='oc-switch';
-    sd.style.cssText='margin:0 5px';
-    var knob=document.createElement('span');knob.className='oc-knob';
-    sd.appendChild(knob);
-    cb.checked=enterNewline==='1';
-    sd.classList.toggle('oc-on',cb.checked);
-    cb.addEventListener('change',function(){localStorage.setItem('oc_enter_newline',cb.checked?'1':'0');sd.classList.toggle('oc-on',cb.checked);});
-    tr.appendChild(cb);
-    tr.appendChild(sd);
-    var tl=document.createElement('span');tl.className='oc-lbl';tl.textContent=${jsStringLiteral(t('menu.enterNewline'))};
-    tr.appendChild(tl);
-    items.appendChild(tr);
-    var btn=document.createElement('button');btn.id='oc-panel-close';
-    var ico=document.createElement('span');ico.className='oc-ico';ico.textContent='\\u2716';
+    btns.forEach(function(b){var btn=document.createElement('button');var ico=document.createElement('span');ico.className='t3-ico'+(b.a==='forward'?' t3-ico-sm':'');ico.textContent=b.i;btn.appendChild(ico);var lbl=document.createElement('span');lbl.className='t3-lbl';lbl.textContent=b.l;btn.appendChild(lbl);btn.addEventListener('click',function(){panel.classList.remove('show');switch(b.a){case'external':window.open(window.location.href,'_system');break;case'reload':window.location.reload();break;case'back':window.history.back();break;case'forward':window.history.forward();break}});items.appendChild(btn)});
+    var btn=document.createElement('button');btn.id='t3-panel-close';
+    var ico=document.createElement('span');ico.className='t3-ico';ico.textContent='\\u2716';
     btn.appendChild(ico);
-    var lbl=document.createElement('span');lbl.className='oc-lbl';lbl.textContent=${jsStringLiteral(t('common.close'))};
+    var lbl=document.createElement('span');lbl.className='t3-lbl';lbl.textContent=${jsStringLiteral(t('common.close'))};
     btn.appendChild(lbl);
     btn.addEventListener('click',function(){panel.classList.remove('show');if(window.mobileApp)window.mobileApp.close();});
     items.appendChild(btn);var sp=document.createElement('div');sp.style.height='8px';items.appendChild(sp);
     panel.appendChild(items);
     document.body.appendChild(panel);
-    var ocPull={tracking:false,axis:null,startX:0,startY:0,offset:0,pointer:'touch',moved:false};
+    var t3Pull={tracking:false,axis:null,startX:0,startY:0,offset:0,pointer:'touch',moved:false};
     var suppressClickUntil=0;
-    var ocRefreshOffset=32;
-    var ocRefreshTriggerOffset=27;
-    var ocMinimumSpinMs=300;
-    var ocHideMs=900;
-    function ocPullOffset(deltaY){return ocRefreshOffset*(1-Math.exp(-deltaY/48));}
-    function ocSetPullOffset(offset){ocPull.offset=offset;tab.style.setProperty('--oc-pull-y',offset+'px');if(offset>0){tab.classList.add('oc-pulling')}else{tab.classList.remove('oc-pulling')}}
-    function ocResetPull(){tab.classList.remove('oc-pulling','oc-refreshing','oc-hiding');tab.classList.add('oc-releasing');ocSetPullOffset(0);setTimeout(function(){tab.classList.remove('oc-releasing')},340)}
-    function ocStartPull(x,y,pointer){if(tab.classList.contains('oc-refreshing'))return;tab.classList.remove('oc-releasing','oc-hiding');ocPull.tracking=true;ocPull.axis=null;ocPull.startX=x;ocPull.startY=y;ocPull.offset=0;ocPull.pointer=pointer;ocPull.moved=false;ocSetPullOffset(0)}
-    function ocMovePull(x,y,event){if(!ocPull.tracking)return;var dy=y-ocPull.startY;if(!ocPull.axis){if(dy<8)return;ocPull.axis='y';panel.classList.remove('show')}if(dy<=0){ocSetPullOffset(0);return}ocPull.moved=true;ocSetPullOffset(ocPullOffset(dy));if(event&&event.cancelable)event.preventDefault()}
-    function ocEndPull(){if(!ocPull.tracking)return;var shouldReload=ocPull.offset>=ocRefreshTriggerOffset;var shouldSuppressClick=ocPull.moved||ocPull.offset>0||ocPull.axis==='y';ocPull.tracking=false;ocPull.axis=null;if(shouldReload){suppressClickUntil=Date.now()+ocMinimumSpinMs+250;tab.classList.remove('oc-pulling');tab.classList.add('oc-refreshing');ocSetPullOffset(ocRefreshOffset);setTimeout(function(){window.location.reload()},ocMinimumSpinMs)}else{if(shouldSuppressClick)suppressClickUntil=Date.now()+550;ocResetPull()}}
-    function ocCancelPull(){if(!ocPull.tracking)return;ocPull.tracking=false;ocPull.axis=null;suppressClickUntil=Date.now()+350;ocResetPull()}
-    tab.addEventListener('touchstart',function(e){if(e.touches.length!==1)return;var t=e.touches[0];ocStartPull(t.clientX,t.clientY,'touch')},{passive:false});
-    tab.addEventListener('touchmove',function(e){if(e.touches.length!==1)return;var t=e.touches[0];ocMovePull(t.clientX,t.clientY,e)},{passive:false});
-    tab.addEventListener('touchend',function(){ocEndPull()});
-    tab.addEventListener('touchcancel',function(){ocCancelPull()});
-    document.addEventListener('touchmove',function(e){if(ocPull.pointer!=='touch'||e.touches.length!==1)return;var t=e.touches[0];ocMovePull(t.clientX,t.clientY,e)},{passive:false});
-    document.addEventListener('touchend',function(){if(ocPull.pointer==='touch')ocEndPull()});
-    document.addEventListener('touchcancel',function(){if(ocPull.pointer==='touch')ocCancelPull()});
-    tab.addEventListener('mousedown',function(e){if(e.button!==0)return;ocStartPull(e.clientX,e.clientY,'mouse');e.preventDefault()});
-    document.addEventListener('mousemove',function(e){if(ocPull.pointer==='mouse')ocMovePull(e.clientX,e.clientY,e)});
-    document.addEventListener('mouseup',function(){if(ocPull.pointer==='mouse')ocEndPull()});
-    tab.addEventListener('click',function(e){e.stopPropagation();if(Date.now()<suppressClickUntil||ocPull.moved){e.preventDefault();ocPull.moved=false;return}panel.classList.toggle('show')});
+    var t3RefreshOffset=32;
+    var t3RefreshTriggerOffset=27;
+    var t3MinimumSpinMs=300;
+    function t3PullOffset(deltaY){return t3RefreshOffset*(1-Math.exp(-deltaY/48));}
+    function t3SetPullOffset(offset){t3Pull.offset=offset;tab.style.setProperty('--t3-pull-y',offset+'px');if(offset>0){tab.classList.add('t3-pulling')}else{tab.classList.remove('t3-pulling')}}
+    function t3ResetPull(){tab.classList.remove('t3-pulling','t3-refreshing','t3-hiding');tab.classList.add('t3-releasing');t3SetPullOffset(0);setTimeout(function(){tab.classList.remove('t3-releasing')},340)}
+    function t3StartPull(x,y,pointer){if(tab.classList.contains('t3-refreshing'))return;tab.classList.remove('t3-releasing','t3-hiding');t3Pull.tracking=true;t3Pull.axis=null;t3Pull.startX=x;t3Pull.startY=y;t3Pull.offset=0;t3Pull.pointer=pointer;t3Pull.moved=false;t3SetPullOffset(0)}
+    function t3MovePull(x,y,event){if(!t3Pull.tracking)return;var dy=y-t3Pull.startY;if(!t3Pull.axis){if(dy<8)return;t3Pull.axis='y';panel.classList.remove('show')}if(dy<=0){t3SetPullOffset(0);return}t3Pull.moved=true;t3SetPullOffset(t3PullOffset(dy));if(event&&event.cancelable)event.preventDefault()}
+    function t3EndPull(){if(!t3Pull.tracking)return;var shouldReload=t3Pull.offset>=t3RefreshTriggerOffset;var shouldSuppressClick=t3Pull.moved||t3Pull.offset>0||t3Pull.axis==='y';t3Pull.tracking=false;t3Pull.axis=null;if(shouldReload){suppressClickUntil=Date.now()+t3MinimumSpinMs+250;tab.classList.remove('t3-pulling');tab.classList.add('t3-refreshing');t3SetPullOffset(t3RefreshOffset);setTimeout(function(){window.location.reload()},t3MinimumSpinMs)}else{if(shouldSuppressClick)suppressClickUntil=Date.now()+550;t3ResetPull()}}
+    function t3CancelPull(){if(!t3Pull.tracking)return;t3Pull.tracking=false;t3Pull.axis=null;suppressClickUntil=Date.now()+350;t3ResetPull()}
+    tab.addEventListener('touchstart',function(e){if(e.touches.length!==1)return;var t=e.touches[0];t3StartPull(t.clientX,t.clientY,'touch')},{passive:false});
+    tab.addEventListener('touchmove',function(e){if(e.touches.length!==1)return;var t=e.touches[0];t3MovePull(t.clientX,t.clientY,e)},{passive:false});
+    tab.addEventListener('touchend',function(){t3EndPull()});
+    tab.addEventListener('touchcancel',function(){t3CancelPull()});
+    document.addEventListener('touchmove',function(e){if(t3Pull.pointer!=='touch'||e.touches.length!==1)return;var t=e.touches[0];t3MovePull(t.clientX,t.clientY,e)},{passive:false});
+    document.addEventListener('touchend',function(){if(t3Pull.pointer==='touch')t3EndPull()});
+    document.addEventListener('touchcancel',function(){if(t3Pull.pointer==='touch')t3CancelPull()});
+    tab.addEventListener('mousedown',function(e){if(e.button!==0)return;t3StartPull(e.clientX,e.clientY,'mouse');e.preventDefault()});
+    document.addEventListener('mousemove',function(e){if(t3Pull.pointer==='mouse')t3MovePull(e.clientX,e.clientY,e)});
+    document.addEventListener('mouseup',function(){if(t3Pull.pointer==='mouse')t3EndPull()});
+    tab.addEventListener('click',function(e){e.stopPropagation();if(Date.now()<suppressClickUntil||t3Pull.moved){e.preventDefault();t3Pull.moved=false;return}panel.classList.toggle('show')});
     document.addEventListener('click',function(){panel.classList.remove('show')});
     panel.addEventListener('click',function(e){e.stopPropagation()});
-  })();
-  (function(){
-    document.addEventListener('keydown',function(e){
-      if(localStorage.getItem('oc_enter_newline')!=='1')return;
-      var inp=e.target.closest('[data-component="prompt-input"]');
-      if(!inp||e.key!=='Enter'||e.shiftKey)return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      document.execCommand('insertLineBreak',false,null);
-      inp.dispatchEvent(new Event('input',{bubbles:true}));
-    },true);
-  })();
-  (function(){
-    if(window.__oc_mobileSidebarFix)return;
-    window.__oc_mobileSidebarFix=true;
-    function c(){var n=document.querySelector('[data-component="sidebar-nav-mobile"]');if(!n)return;var o=n.previousElementSibling;if(o&&o.classList.contains('opacity-100'))o.click()}
-    document.addEventListener('click',function(e){var t=e.target;while(t&&t!==document){if(t.tagName==='A'&&t.getAttribute('href')&&t.getAttribute('href').includes('/session')){setTimeout(c,0);break}t=t.parentElement}},true);
-  })()`
-}
-
-function buildMobileComposerFixScript(): string {
-  return `(function(){
-    if(window.__oc_mobileComposerFix)return;
-    window.__oc_mobileComposerFix=true;
-
-    var composerSelector='[data-component="prompt-input-v2"]';
-    var submitSelector='[data-action="prompt-submit"]';
-    var compactWidth=560;
-    var observed=new WeakMap();
-    var refreshQueued=false;
-
-    function installStyle(){
-      if(document.getElementById('oc-mobile-composer-fix-style'))return;
-      var style=document.createElement('style');
-      style.id='oc-mobile-composer-fix-style';
-      style.textContent='[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-row]{display:flex!important;min-width:0!important;min-height:48px!important;height:auto!important;padding:4px 6px 4px 8px!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-controls-host]{position:relative!important;display:flex!important;min-width:0!important;flex:1 1 auto!important;align-self:stretch!important;align-items:center!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-controls]{display:flex!important;width:100%!important;min-width:0!important;overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-controls]::-webkit-scrollbar{display:none}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-controls]>*{flex:0 0 auto!important;min-width:max-content!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-send-host]{display:flex!important;flex:0 0 40px!important;min-width:40px!important;margin-left:4px!important;align-items:center!important;justify-content:center!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-action="prompt-submit"][data-oc-mobile-composer-send]{position:static!important;z-index:auto!important;box-sizing:border-box!important;flex:0 0 40px!important;width:40px!important;min-width:40px!important;height:40px!important;margin-left:0!important;touch-action:manipulation}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-scroll]{position:absolute!important;top:0!important;bottom:0!important;z-index:1!important;display:flex!important;width:40px!important;padding:0!important;align-items:center!important;border:0!important;background:transparent!important;color:var(--v2-icon-icon-muted,currentColor)!important;font:26px/1 -apple-system,BlinkMacSystemFont,sans-serif!important;touch-action:manipulation!important;cursor:pointer!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-scroll] span{display:block!important;transform:translateY(-1px)!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-scroll="left"]{left:0!important;justify-content:flex-start!important;background-image:linear-gradient(to right,var(--v2-background-bg-base,#1c1c1e),transparent)!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-scroll="right"]{right:0!important;justify-content:flex-end!important;padding-right:8px!important;background-image:linear-gradient(to left,var(--v2-background-bg-base,#1c1c1e),transparent)!important}[data-component="prompt-input-v2"][data-oc-mobile-composer-compact] [data-oc-mobile-composer-scroll][hidden]{display:none!important}';
-      document.head.appendChild(style);
-    }
-
-    function findRow(composer,submit){
-      var row=submit.parentElement;
-      while(row&&row!==composer){
-        // The observer also sees the nodes we add. Prefer the original
-        // scroll container on later passes so we never wrap it again.
-        var patchedControls=row.querySelector('[data-oc-mobile-composer-controls]');
-        if(patchedControls&&!patchedControls.contains(submit)){
-          var patchedHost=patchedControls.parentElement;
-          if(patchedHost&&patchedHost!==row&&!patchedHost.contains(submit)){
-            return {row:row,controls:patchedControls,host:patchedHost};
-          }
-        }
-        var promptControls=row.querySelector('[data-slot="prompt-controls"]');
-        if(promptControls&&!promptControls.contains(submit)){
-          var promptControlsHost=promptControls.parentElement;
-          if(promptControlsHost&&promptControlsHost!==row&&!promptControlsHost.contains(submit)){
-            return {row:row,controls:promptControls,host:promptControlsHost};
-          }
-        }
-        var children=Array.prototype.slice.call(row.children);
-        var controls=null;
-        for(var i=0;i<children.length;i++){
-          var child=children[i];
-          if(child!==submit&&!child.contains(submit)){
-            controls=child;
-            break;
-          }
-        }
-        if(controls)return {row:row,controls:controls,host:controls};
-        row=row.parentElement;
-      }
-      return null;
-    }
-
-    function setCompact(composer){
-      var width=composer.getBoundingClientRect().width;
-      if(width>0&&width<=compactWidth)composer.setAttribute('data-oc-mobile-composer-compact','');
-      else composer.removeAttribute('data-oc-mobile-composer-compact');
-    }
-
-    function ensureControlsHost(layout){
-      if(layout.host!==layout.controls)return layout.host;
-      var host=document.createElement('div');
-      layout.controls.parentNode.insertBefore(host,layout.controls);
-      host.appendChild(layout.controls);
-      return host;
-    }
-
-    function scrollControls(controls,direction){
-      var amount=Math.max(controls.clientWidth-32,1);
-      if(typeof controls.scrollBy==='function')controls.scrollBy({left:direction*amount,behavior:'smooth'});
-      else controls.scrollLeft+=direction*amount;
-    }
-
-    function ensureScrollButton(host,controls,direction){
-      var side=direction<0?'left':'right';
-      var button=host.querySelector('[data-oc-mobile-composer-scroll="'+side+'"]');
-      if(button)return button;
-      button=document.createElement('button');
-      button.type='button';
-      button.setAttribute('data-oc-mobile-composer-scroll',side);
-      button.setAttribute('aria-label','Scroll prompt controls '+side);
-      var glyph=document.createElement('span');
-      glyph.setAttribute('aria-hidden','true');
-      glyph.textContent=direction<0?'\u2039':'\u203a';
-      button.appendChild(glyph);
-      button.hidden=true;
-      button.addEventListener('click',function(event){
-        event.preventDefault();
-        event.stopPropagation();
-        scrollControls(controls,direction);
-      });
-      host.appendChild(button);
-      return button;
-    }
-
-    function updateScrollButtons(composer,controls,leftButton,rightButton){
-      if(!composer.hasAttribute('data-oc-mobile-composer-compact')){
-        leftButton.hidden=true;
-        rightButton.hidden=true;
-        return;
-      }
-      var container=controls.getBoundingClientRect();
-      var hasLeft=false;
-      var hasRight=false;
-      var children=controls.children;
-      for(var i=0;i<children.length;i++){
-        var bounds=children[i].getBoundingClientRect();
-        if(bounds.left<container.left-1)hasLeft=true;
-        if(bounds.right>container.right+1)hasRight=true;
-      }
-      if(!hasLeft&&!hasRight&&controls.scrollWidth>controls.clientWidth+1){
-        hasLeft=controls.scrollLeft>1;
-        hasRight=controls.scrollLeft<controls.scrollWidth-controls.clientWidth-1;
-      }
-      leftButton.hidden=!hasLeft;
-      rightButton.hidden=!hasRight;
-    }
-
-    function patchComposer(composer){
-      var submit=composer.querySelector(submitSelector);
-      if(!submit)return;
-      var layout=findRow(composer,submit);
-      if(!layout)return;
-      layout.host=ensureControlsHost(layout);
-      layout.row.setAttribute('data-oc-mobile-composer-row','');
-      layout.controls.setAttribute('data-oc-mobile-composer-controls','');
-      layout.host.setAttribute('data-oc-mobile-composer-controls-host','');
-      var submitHost=submit.parentElement;
-      if(submitHost&&submitHost!==layout.row)submitHost.setAttribute('data-oc-mobile-composer-send-host','');
-      submit.setAttribute('data-oc-mobile-composer-send','');
-      setCompact(composer);
-      var leftButton=ensureScrollButton(layout.host,layout.controls,-1);
-      var rightButton=ensureScrollButton(layout.host,layout.controls,1);
-      var update=function(){updateScrollButtons(composer,layout.controls,leftButton,rightButton)};
-      update();
-      var previous=observed.get(composer);
-      if(!previous||previous.controls!==layout.controls){
-        observed.set(composer,{controls:layout.controls});
-        if(window.ResizeObserver){
-          var resizeObserver=new ResizeObserver(function(){setCompact(composer);update()});
-          resizeObserver.observe(composer);
-          resizeObserver.observe(layout.controls);
-        }
-        layout.controls.addEventListener('scroll',update,{passive:true});
-        var controlsObserver=new MutationObserver(function(){requestAnimationFrame(update)});
-        controlsObserver.observe(layout.controls,{childList:true,subtree:true,characterData:true});
-      }
-      requestAnimationFrame(update);
-    }
-
-    function refresh(){
-      var composers=document.querySelectorAll(composerSelector);
-      for(var i=0;i<composers.length;i++)patchComposer(composers[i]);
-    }
-
-    function scheduleRefresh(){
-      if(refreshQueued)return;
-      refreshQueued=true;
-      requestAnimationFrame(function(){refreshQueued=false;refresh()});
-    }
-
-    function mount(){
-      if(!document.head||!document.body){setTimeout(mount,50);return;}
-      installStyle();
-      refresh();
-      var observer=new MutationObserver(scheduleRefresh);
-      observer.observe(document.body,{childList:true,subtree:true});
-      setTimeout(refresh,250);
-      setTimeout(refresh,1000);
-    }
-    mount();
   })();`
 }
 
@@ -560,23 +352,23 @@ function getNotificationPromptPreview(detail: unknown): string {
   const record = detail && typeof detail === 'object' ? detail as Record<string, unknown> : {}
   const title = typeof record.title === 'string' ? record.title.trim() : ''
   const body = typeof record.body === 'string' ? record.body.trim() : ''
-  return ellipsize([title, body].filter(Boolean).join('\n') || 'OpenCode notification')
+  return ellipsize([title, body].filter(Boolean).join('\n') || `${APP_FALLBACK_TITLE} notification`)
 }
 
 function buildNotificationApprovalPromptScript(preview: string): string {
   return `(function(){
     function mount(){
     if(!document.body){setTimeout(mount,50);return;}
-    var old=document.getElementById('oc-notification-permission-modal');
+    var old=document.getElementById('t3-notification-permission-modal');
     if(old)old.remove();
     var style=document.createElement('style');
-    style.id='oc-notification-permission-style';
-    style.textContent='#oc-notification-permission-modal{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.54);display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#f5f5f7}#oc-notification-permission-box{width:min(330px,100%);background:#1c1c1e;border:1px solid rgba(255,255,255,.14);border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.5);overflow:hidden}#oc-notification-permission-content{padding:18px 18px 14px;display:flex;flex-direction:column;gap:12px}#oc-notification-permission-title{font-size:17px;font-weight:700;line-height:1.25;text-align:center}#oc-notification-permission-message{font-size:13px;line-height:1.38;color:rgba(245,245,247,.78);text-align:center}#oc-notification-permission-preview{font-size:13px;line-height:1.35;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-word;max-height:88px;overflow:hidden}#oc-notification-permission-foot{font-size:12px;line-height:1.3;color:rgba(245,245,247,.58);text-align:center}#oc-notification-permission-actions{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid rgba(255,255,255,.12)}#oc-notification-permission-actions button{appearance:none;border:0;background:transparent;color:#0a84ff;font-size:16px;padding:13px 8px;font-weight:600}#oc-notification-permission-actions button:first-child{border-right:1px solid rgba(255,255,255,.12);font-weight:500;color:rgba(245,245,247,.8)}';
+    style.id='t3-notification-permission-style';
+    style.textContent='#t3-notification-permission-modal{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.54);display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#f5f5f7}#t3-notification-permission-box{width:min(330px,100%);background:#1c1c1e;border:1px solid rgba(255,255,255,.14);border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.5);overflow:hidden}#t3-notification-permission-content{padding:18px 18px 14px;display:flex;flex-direction:column;gap:12px}#t3-notification-permission-title{font-size:17px;font-weight:700;line-height:1.25;text-align:center}#t3-notification-permission-message{font-size:13px;line-height:1.38;color:rgba(245,245,247,.78);text-align:center}#t3-notification-permission-preview{font-size:13px;line-height:1.35;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-word;max-height:88px;overflow:hidden}#t3-notification-permission-foot{font-size:12px;line-height:1.3;color:rgba(245,245,247,.58);text-align:center}#t3-notification-permission-actions{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid rgba(255,255,255,.12)}#t3-notification-permission-actions button{appearance:none;border:0;background:transparent;color:#0a84ff;font-size:16px;padding:13px 8px;font-weight:600}#t3-notification-permission-actions button:first-child{border-right:1px solid rgba(255,255,255,.12);font-weight:500;color:rgba(245,245,247,.8)}';
     document.head.appendChild(style);
     var modal=document.createElement('div');
-    modal.id='oc-notification-permission-modal';
-    modal.innerHTML='<div id="oc-notification-permission-box"><div id="oc-notification-permission-content"><div id="oc-notification-permission-title">${t('settings.notifications')}</div><div id="oc-notification-permission-message">${t('settings.notificationDescription')}</div><div id="oc-notification-permission-preview"></div></div><div id="oc-notification-permission-actions"><button type="button" data-choice="no">${t('common.cancel')}</button><button type="button" data-choice="yes">${t('common.confirm')}</button></div></div>';
-    modal.querySelector('#oc-notification-permission-preview').textContent=${JSON.stringify(preview)};
+    modal.id='t3-notification-permission-modal';
+    modal.innerHTML='<div id="t3-notification-permission-box"><div id="t3-notification-permission-content"><div id="t3-notification-permission-title">${t('settings.notifications')}</div><div id="t3-notification-permission-message">${t('settings.notificationDescription')}</div><div id="t3-notification-permission-preview"></div></div><div id="t3-notification-permission-actions"><button type="button" data-choice="no">${t('common.cancel')}</button><button type="button" data-choice="yes">${t('common.confirm')}</button></div></div>';
+    modal.querySelector('#t3-notification-permission-preview').textContent=${JSON.stringify(preview)};
     function respond(accepted){
       try{window.mobileApp&&window.mobileApp.postMessage&&window.mobileApp.postMessage({detail:{type:'${WEB_NOTIFICATION_PROMPT_RESPONSE_MESSAGE_TYPE}',accepted:accepted}});}catch(e){}
       modal.remove();
@@ -626,7 +418,7 @@ async function handleWebviewNotificationMessage(detail: unknown): Promise<void> 
     if (!granted) return
   }
 
-  await emitNativeNotificationFromWebMessage(detail, profile.value?.name ?? 'OpenCode')
+  await emitNativeNotificationFromWebMessage(detail, profile.value?.name ?? APP_FALLBACK_TITLE)
 }
 
 function handleDownloadCompleted(event: DownloadCompletedEvent): void {
@@ -656,6 +448,12 @@ async function openUrlInDefaultBrowser(url: string): Promise<void> {
 
 onMounted(async () => {
   await serverStore.load()
+
+  if (isHosted.value) {
+    await openWebView(HOSTED_WEB_APP_URL, 'app.t3.codes', 'connected')
+    return
+  }
+
   if (!profile.value) { router.push('/'); return }
   registerBackButton(handleBackButton)
 
@@ -667,18 +465,18 @@ onMounted(async () => {
   }
 
   connectionStore.lastWebviewServerId = profile.value.id
-  demoModeActive.value = await isCurrentProfileDemoMode()
 
-  if (demoModeActive.value) {
-    loading.value = false
-    return
-  }
+  // A saved token means this device still needs to be (re)paired; otherwise the
+  // server is already authorized for this WebView session.
+  const token = profile.value.pairingEnabled
+    ? await serverStore.getPairingToken(profile.value.id)
+    : null
+  const url = token
+    ? buildPairUrl(profile.value.baseUrl, token)
+    : buildAppUrl(profile.value.baseUrl)
+  const displayUrl = profile.value.baseUrl.replace(/^https?:\/\//, '')
 
-  if (Capacitor.isNativePlatform()) {
-    await openInAppBrowser()
-  } else {
-    await openInNewTabFallback()
-  }
+  await openWebView(url, displayUrl, connectionStore.state)
 })
 
 onUnmounted(() => {
@@ -687,23 +485,17 @@ onUnmounted(() => {
   resolveNotificationPrompt(false)
 })
 
-async function isCurrentProfileDemoMode(): Promise<boolean> {
-  if (!profile.value?.authEnabled) return false
-  const pw = await serverStore.getPassword(profile.value.id)
-  return isDemoModeServer({
-    baseUrl: profile.value.baseUrl,
-    username: profile.value.username,
-    password: pw,
-  })
+function openWebView(url: string, displayUrl: string, status: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    window.open(url, '_blank')
+    loading.value = false
+    errorText.value = t('connection.opened')
+    return Promise.resolve()
+  }
+  return openInAppBrowser(url, displayUrl, status)
 }
 
-async function openInAppBrowser(): Promise<void> {
-  const isIOS = Capacitor.getPlatform() === 'ios'
-  const pw = await serverStore.getPassword(profile.value!.id)
-  const auth = profile.value!.authEnabled && pw
-  const url = isIOS && auth
-    ? buildIframeUrl(profile.value!.baseUrl, profile.value!.username, pw!)
-    : buildIframeUrl(profile.value!.baseUrl)
+async function openInAppBrowser(url: string, displayUrl: string, status: string): Promise<void> {
   const { enabled: deviceIntegration, openLinksInBrowser } = await loadDeviceIntegrationSettings()
 
   browserClosedHandle = await InAppBrowser.addListener('closeEvent', () => {
@@ -734,59 +526,21 @@ async function openInAppBrowser(): Promise<void> {
   })
 
   pageLoadedHandle = await InAppBrowser.addListener('browserPageLoaded', async () => {
-    const displayUrl = profile.value!.baseUrl.replace(/^https?:\/\//, '')
     if (deviceIntegration) {
       await InAppBrowser.executeScript({ code: buildDeviceClipboardScript() })
     }
     if (openLinksInBrowser) {
       await InAppBrowser.executeScript({ code: buildExternalLinkScript() })
     }
-    await InAppBrowser.executeScript({ code: buildToolbarScript(connectionStore.state, displayUrl) })
-    await InAppBrowser.executeScript({ code: buildMobileComposerFixScript() })
-    await InAppBrowser.executeScript({
-      code: `(function(){
-        var patterns=['Error: ServerSync','Error: Settings context','settings context must be used'];
-        var hidden=new Set;
-        function hideErrors(){
-          var all=document.querySelectorAll('textarea');
-          for(var i=0;i<all.length;i++){
-            var ta=all[i];
-            if(ta.style.display==='none')continue;
-            var val=(ta.value||'').toLowerCase();
-            for(var j=0;j<patterns.length;j++){
-              if(val.indexOf(patterns[j].toLowerCase())===-1)continue;
-              var key=ta.id||ta.name||ta.getAttribute('data-slot')||i;
-              if(hidden.has(key))continue;
-              hidden.add(key);
-              ta.style.display='none';
-              var p=ta.parentElement;
-              while(p&&p!==document.body){
-                if(p.children.length===1){p.style.display='none';p=p.parentElement}
-                else break;
-              }
-              var root=document.getElementById('root');
-              if(root&&root.firstElementChild&&root.firstElementChild.contains(ta))root.firstElementChild.style.display='none';
-            }
-          }
-        }
-        hideErrors();
-        var obs=new MutationObserver(function(){hideErrors()});
-        try{obs.observe(document.body,{childList:true,subtree:true})}catch(e){}
-        setInterval(hideErrors,3000);
-        setTimeout(function(){try{obs.disconnect()}catch(e){}},120000);
-      })();`
-    })
+    await InAppBrowser.executeScript({ code: buildToolbarScript(status, displayUrl) })
   })
 
   appStateHandle = await App.addListener('appStateChange', (state) => {
-    if (state.isActive) {
-      InAppBrowser.executeScript({
-        code: `(function(){
-          var dot = document.querySelector('#opencode-titlebar-right > div > div > div:nth-child(1) > button > div > div.bg-icon-critical-base');
-          if (dot) { window.location.reload(); }
-        })();`
-      }).catch(() => {})
-    }
+    if (!state.isActive) return
+    // Nudge the WebView on resume so a dropped socket reconnects promptly.
+    InAppBrowser.executeScript({
+      code: `(function(){try{window.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('focus'));}catch(e){}})();`
+    }).catch(() => {})
   })
 
   try {
@@ -806,12 +560,6 @@ async function openInAppBrowser(): Promise<void> {
       isPresentAfterPageLoad: true,
       preShowScriptInjectionTime: 'documentStart',
       preShowScript: buildNotificationBridgeScript(),
-      ...(auth && !isIOS ? {
-        credentials: {
-          username: profile.value!.username,
-          password: pw!,
-        },
-      } : {}),
     })
   } catch {
     removeWebviewListeners()
@@ -820,35 +568,21 @@ async function openInAppBrowser(): Promise<void> {
   }
 }
 
-async function openInNewTabFallback(): Promise<void> {
-  const pw = await serverStore.getPassword(profile.value!.id)
-  const url = buildIframeUrl(
-    profile.value!.baseUrl,
-    profile.value!.authEnabled ? profile.value!.username : undefined,
-    profile.value!.authEnabled && pw ? pw : undefined,
-  )
-  window.open(url, '_blank')
-  loading.value = false
-  errorText.value = t('connection.opened')
-}
-
 async function retry(): Promise<void> {
   errorText.value = ''
   loading.value = true
+  if (isHosted.value) { await openWebView(HOSTED_WEB_APP_URL, 'app.t3.codes', 'connected'); return }
   if (!profile.value) { goHome(); return }
   const connected = await connectionStore.connect(profile.value.id)
   if (connected) {
     connectionStore.lastWebviewServerId = profile.value.id
-    demoModeActive.value = await isCurrentProfileDemoMode()
-    if (demoModeActive.value) {
-      loading.value = false
-      return
-    }
-    if (Capacitor.isNativePlatform()) {
-      await openInAppBrowser()
-    } else {
-      await openInNewTabFallback()
-    }
+    const token = profile.value.pairingEnabled
+      ? await serverStore.getPairingToken(profile.value.id)
+      : null
+    const url = token
+      ? buildPairUrl(profile.value.baseUrl, token)
+      : buildAppUrl(profile.value.baseUrl)
+    await openWebView(url, profile.value.baseUrl.replace(/^https?:\/\//, ''), connectionStore.state)
   } else {
     loading.value = false
     errorText.value = connectionStore.lastError ?? t('connection.unreachable')

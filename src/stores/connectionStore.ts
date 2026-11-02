@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ConnectionState, ServerProfile } from '@/types'
-import { checkServerHealth } from '@/services/opencode/health'
+import { checkServerHealth } from '@/services/t3code/health'
 import { useServerStore } from './serverStore'
 
 const DEFAULT_TIMEOUT = 3500
@@ -65,12 +65,8 @@ export const useConnectionStore = defineStore('connection', () => {
     lastError.value = null
     iframeLoadingFailed.value = false
 
-    const password = await serverStore.getPassword(serverId)
-
     const result = await checkServerHealth({
       baseUrl: profile.baseUrl,
-      username: profile.authEnabled ? profile.username : undefined,
-      password: profile.authEnabled && password ? password : undefined,
       timeoutMs: healthCheckTimeout.value,
     })
 
@@ -87,12 +83,7 @@ export const useConnectionStore = defineStore('connection', () => {
 
     if (result.status === 'auth_required') {
       state.value = 'auth_required'
-      return false
-    }
-
-    if (result.status === 'wrong_credentials') {
-      state.value = 'wrong_credentials'
-      lastError.value = 'The username or password is incorrect.'
+      lastError.value = 'This server needs pairing before the app can use it.'
       return false
     }
 
@@ -111,12 +102,8 @@ export const useConnectionStore = defineStore('connection', () => {
         return
       }
 
-      const password = await serverStore.getPassword(serverId)
-
       const result = await checkServerHealth({
         baseUrl: profile.baseUrl,
-        username: profile.authEnabled ? profile.username : undefined,
-        password: profile.authEnabled && password ? password : undefined,
         timeoutMs: healthCheckTimeout.value,
       })
 
@@ -161,12 +148,8 @@ export const useConnectionStore = defineStore('connection', () => {
         return
       }
 
-      const password = await serverStore.getPassword(serverId)
-
       const result = await checkServerHealth({
         baseUrl: profile.baseUrl,
-        username: profile.authEnabled ? profile.username : undefined,
-        password: profile.authEnabled && password ? password : undefined,
         timeoutMs: healthCheckTimeout.value,
       })
 

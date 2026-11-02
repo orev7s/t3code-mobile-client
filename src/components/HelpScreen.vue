@@ -11,10 +11,6 @@
       <section>
         <h2 class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{{ t('help.about') }}</h2>
         <p class="text-sm leading-relaxed">{{ t('help.aboutText') }}</p>
-        <div class="mt-4 flex flex-col items-center gap-3">
-          <p class="text-sm text-center leading-relaxed">🔃 Seamlessly continue sessions started on your computer from your phone, or vice versa.</p>
-          <StoreBadges />
-        </div>
       </section>
 
       <section>
@@ -26,13 +22,18 @@
       <section>
         <h2 class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{{ t('help.startServer') }}</h2>
 
-        <h3 class="text-sm font-semibold mb-2">{{ t('help.noAuth') }}</h3>
-        <pre class="text-xs bg-muted p-3 rounded-md overflow-x-auto mb-4">opencode web --hostname 0.0.0.0 --port 4096</pre>
+        <h3 class="text-sm font-semibold mb-2">{{ t('help.installCli') }}</h3>
+        <pre class="text-xs bg-muted p-3 rounded-md overflow-x-auto mb-4">curl -fsSL https://t3.codes/install.sh | sh</pre>
 
-        <h3 class="text-sm font-semibold mb-2">{{ t('help.withAuth') }}</h3>
-        <pre class="text-xs bg-muted p-3 rounded-md overflow-x-auto mb-3">export OPENCODE_SERVER_PASSWORD="your-secret-password"
-opencode serve --hostname 0.0.0.0 --port 4096</pre>
-        <p class="text-sm text-muted-foreground" v-html="t('help.authDefault')" />
+        <h3 class="text-sm font-semibold mb-2">{{ t('help.lanServer') }}</h3>
+        <pre class="text-xs bg-muted p-3 rounded-md overflow-x-auto mb-3">t3 up --lan
+# or, to keep a server in the foreground:
+t3 serve --lan</pre>
+        <p class="text-sm text-muted-foreground" v-html="t('help.pairHint')" />
+
+        <h3 class="text-sm font-semibold mb-2 mt-4">{{ t('help.pairTitle') }}</h3>
+        <pre class="text-xs bg-muted p-3 rounded-md overflow-x-auto mb-3">t3 pair</pre>
+        <p class="text-sm text-muted-foreground" v-html="t('help.pairText')" />
       </section>
 
       <Separator />
@@ -49,11 +50,6 @@ opencode serve --hostname 0.0.0.0 --port 4096</pre>
           <div>
             <h3 class="text-sm font-semibold mb-1">{{ t('help.authRequired') }}</h3>
             <p class="text-sm leading-relaxed" v-html="t('help.authRequiredText')" />
-          </div>
-
-          <div>
-            <h3 class="text-sm font-semibold mb-1">{{ t('help.wrongCredentials') }}</h3>
-            <p class="text-sm leading-relaxed" v-html="t('help.wrongCredentialsText')" />
           </div>
 
           <div>
@@ -87,7 +83,6 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import StoreBadges from '@/components/StoreBadges.vue'
 import { useI18n } from '@/i18n'
 
 const router = useRouter()

@@ -56,7 +56,7 @@ describe('device integration settings', () => {
     await setDeviceIntegrationEnabled(false)
 
     expect(Preferences.set).toHaveBeenCalledWith({
-      key: 'opencode_device_integration',
+      key: 't3code_device_integration',
       value: JSON.stringify({ enabled: false, openLinksInBrowser: true }),
     })
 
@@ -77,7 +77,7 @@ describe('device integration settings', () => {
     await setOpenLinksInBrowserEnabled(false)
 
     expect(Preferences.set).toHaveBeenCalledWith({
-      key: 'opencode_device_integration',
+      key: 't3code_device_integration',
       value: JSON.stringify({ enabled: false, openLinksInBrowser: false }),
     })
   })
@@ -86,7 +86,7 @@ describe('device integration settings', () => {
     await saveDeviceIntegrationSettings({ openLinksInBrowser: false })
 
     expect(Preferences.set).toHaveBeenCalledWith({
-      key: 'opencode_device_integration',
+      key: 't3code_device_integration',
       value: JSON.stringify({ enabled: true, openLinksInBrowser: false }),
     })
   })

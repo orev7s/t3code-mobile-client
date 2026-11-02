@@ -1,16 +1,16 @@
 import { Capacitor } from '@capacitor/core'
 import { Preferences } from '@capacitor/preferences'
 
-const SETTINGS_KEY = 'opencode_device_integration'
+const SETTINGS_KEY = 't3code_device_integration'
 
 export type DeviceIntegrationSettings = {
   /**
-   * When enabled, the embedded OpenCode Web UI uses the phone for file
+   * When enabled, the embedded T3 Code Web UI uses the phone for file
    * downloads and clipboard writes instead of leaving them inside the WebView.
    */
   enabled: boolean
   /**
-   * When enabled, links tapped in the embedded OpenCode Web UI that point to
+   * When enabled, links tapped in the embedded T3 Code Web UI that point to
    * another origin open in the phone's browser instead of navigating inside
    * the WebView.
    */

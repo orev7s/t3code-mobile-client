@@ -14,9 +14,8 @@ function createProfile(overrides: Record<string, any> = {}) {
   return {
     id: overrides.id ?? 'test-1',
     name: overrides.name ?? 'Test Server',
-    baseUrl: 'http://192.168.1.100:4096',
-    authEnabled: false,
-    username: 'opencode',
+    baseUrl: 'http://192.168.1.100:3773',
+    pairingEnabled: false,
     isDefault: false,
     allowInsecureHttp: true,
     lastStatus: 'unknown' as const,

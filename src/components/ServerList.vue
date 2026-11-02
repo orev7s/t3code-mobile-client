@@ -62,7 +62,7 @@
           >
             {{ t('servers.default') }}
           </Badge>
-          <Badge v-if="profile.authEnabled" variant="outline">{{ t('form.authentication') }}</Badge>
+          <Badge v-if="profile.pairingEnabled" variant="outline">{{ t('form.pairing') }}</Badge>
           <span class="ml-auto text-xs text-muted-foreground self-center">{{ statusLabel(profileStatus(profile)) }}</span>
         </CardContent>
         <CardFooter class="gap-0.5">
@@ -86,7 +86,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, 
 import { Skeleton } from '@/components/ui/skeleton'
 import { useServerStore } from '@/stores/serverStore'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { sanitizeUrlForDisplay } from '@/services/opencode/url'
+import { sanitizeUrlForDisplay } from '@/services/t3code/url'
 import { useServerHealthPoll } from '@/composables/useServerHealthPoll'
 import type { ServerProfile } from '@/types'
 import StatusDot from './StatusDot.vue'

@@ -39,8 +39,7 @@
           </div>
         </div>
         <div class="mt-5 flex flex-col items-center gap-3">
-          <p class="text-xs text-muted-foreground text-center leading-relaxed">🔃 Seamlessly continue sessions started on your computer from your phone, or vice versa.</p>
-          <StoreBadges />
+          <p class="text-xs text-muted-foreground text-center leading-relaxed">{{ t('settings.sessionsHint') }}</p>
         </div>
       </section>
 
@@ -68,7 +67,7 @@
 
       <section class="mt-auto">
         <h2 class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{{ t('settings.about') }}</h2>
-        <p class="text-sm mb-2">OpenCode Mobile &lt;Client&gt;</p>
+        <p class="text-sm mb-2">T3 Code Mobile &lt;Client&gt;</p>
         <p class="text-xs text-muted-foreground leading-relaxed" v-html="t('settings.aboutText')" />
       </section>
       <section>
@@ -89,7 +88,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import StoreBadges from '@/components/StoreBadges.vue'
 import { useConnectionStore } from '@/stores/connectionStore'
 import {
   disableNativeNotificationsFromSettings,

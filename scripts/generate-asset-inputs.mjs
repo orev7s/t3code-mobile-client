@@ -3,8 +3,8 @@ import { copyFile, cp, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import sharp from 'sharp'
 
-const LIGHT_SVG = resolve('public/opencode-mobile-client-logo-light.svg')
-const DARK_SVG = resolve('public/opencode-mobile-client-logo-dark.svg')
+const LIGHT_SVG = resolve('public/t3code-mobile-client-logo-light.svg')
+const DARK_SVG = resolve('public/t3code-mobile-client-logo-dark.svg')
 const ASSETS_DIR = resolve('assets')
 const PUBLIC_DIR = resolve('public')
 const ICONS_DIR = resolve('icons')
@@ -149,8 +149,8 @@ async function copyDocsAssets() {
   ensureDir(DOCS_DIR)
   const files = [
     'favicon.svg',
-    'opencode-mobile-client-logo-dark.svg',
-    'opencode-mobile-client-logo-light.svg',
+    't3code-mobile-client-logo-dark.svg',
+    't3code-mobile-client-logo-light.svg',
   ]
   for (const file of files) {
     const src = resolve(PUBLIC_DIR, file)

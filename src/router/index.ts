@@ -40,6 +40,11 @@ const router = createRouter({
       component: HelpScreen,
     },
     {
+      path: '/connect/hosted',
+      name: 'connect-hosted',
+      component: ConnectionShell,
+    },
+    {
       path: '/connect/:id',
       name: 'connect',
       component: ConnectionShell,

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useConnectionStore } from '@/stores/connectionStore'
 import { useServerStore } from '@/stores/serverStore'
-import * as healthModule from '@/services/opencode/health'
+import * as healthModule from '@/services/t3code/health'
 
 vi.mock('@capacitor/preferences', () => ({
   Preferences: {
@@ -13,8 +13,8 @@ vi.mock('@capacitor/preferences', () => ({
 
 vi.mock('@aparajita/capacitor-secure-storage', () => ({
   SecureStorage: {
-    getString: vi.fn().mockResolvedValue({ value: null }),
-    setString: vi.fn(),
+    getItem: vi.fn().mockResolvedValue(null),
+    setItem: vi.fn(),
     remove: vi.fn(),
   },
 }))
@@ -24,6 +24,19 @@ vi.mock('@capacitor/core', () => ({
     isNativePlatform: () => false,
   },
 }))
+
+function newProfile(overrides: Record<string, unknown> = {}) {
+  return {
+    name: 'Test',
+    baseUrl: 'http://192.168.1.100:3773',
+    pairingEnabled: false,
+    isDefault: false,
+    allowInsecureHttp: true,
+    lastStatus: 'unknown' as const,
+    lastConnectedAt: null,
+    ...overrides,
+  }
+}
 
 describe('connectionStore', () => {
   beforeEach(() => {
@@ -47,16 +60,7 @@ describe('connectionStore', () => {
     })
 
     const serverStore = useServerStore()
-    const profile = await serverStore.add({
-      name: 'Test',
-      baseUrl: 'http://192.168.1.100:4096',
-      authEnabled: false,
-      username: 'opencode',
-      isDefault: false,
-      allowInsecureHttp: true,
-      lastStatus: 'unknown',
-      lastConnectedAt: null,
-    })
+    const profile = await serverStore.add(newProfile())
 
     const store = useConnectionStore()
     const result = await store.connect(profile.id)
@@ -73,16 +77,7 @@ describe('connectionStore', () => {
     })
 
     const serverStore = useServerStore()
-    const profile = await serverStore.add({
-      name: 'Test',
-      baseUrl: 'http://192.168.1.100:4096',
-      authEnabled: false,
-      username: 'opencode',
-      isDefault: false,
-      allowInsecureHttp: true,
-      lastStatus: 'unknown',
-      lastConnectedAt: null,
-    })
+    const profile = await serverStore.add(newProfile())
 
     const store = useConnectionStore()
     const result = await store.connect(profile.id)
@@ -92,35 +87,7 @@ describe('connectionStore', () => {
     expect(store.lastError).toBeDefined()
   })
 
-  it('transitions to wrong_credentials on 401 with auth', async () => {
-    vi.spyOn(healthModule, 'checkServerHealth').mockResolvedValue({
-      reachable: true,
-      status: 'wrong_credentials',
-      statusCode: 401,
-    })
-
-    const serverStore = useServerStore()
-    const profile = await serverStore.add({
-      name: 'Test',
-      baseUrl: 'http://192.168.1.100:4096',
-      authEnabled: true,
-      username: 'opencode',
-      isDefault: false,
-      allowInsecureHttp: true,
-      lastStatus: 'unknown',
-      lastConnectedAt: null,
-    })
-
-    await serverStore.setPassword(profile.id, 'wrong-password')
-
-    const store = useConnectionStore()
-    const result = await store.connect(profile.id)
-
-    expect(result).toBe(false)
-    expect(store.state).toBe('wrong_credentials')
-  })
-
-  it('transitions to auth_required on 401 without stored credentials', async () => {
+  it('transitions to auth_required when the server needs pairing', async () => {
     vi.spyOn(healthModule, 'checkServerHealth').mockResolvedValue({
       reachable: true,
       status: 'auth_required',
@@ -128,16 +95,7 @@ describe('connectionStore', () => {
     })
 
     const serverStore = useServerStore()
-    const profile = await serverStore.add({
-      name: 'Test',
-      baseUrl: 'http://192.168.1.100:4096',
-      authEnabled: true,
-      username: 'opencode',
-      isDefault: false,
-      allowInsecureHttp: true,
-      lastStatus: 'unknown',
-      lastConnectedAt: null,
-    })
+    const profile = await serverStore.add(newProfile())
 
     const store = useConnectionStore()
     const result = await store.connect(profile.id)

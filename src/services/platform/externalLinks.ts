@@ -1,8 +1,8 @@
 /**
  * Message type sent by the injected link bridge when the user taps an external
- * link inside the embedded OpenCode Web UI.
+ * link inside the embedded T3 Code Web UI.
  */
-export const EXTERNAL_LINK_MESSAGE_TYPE = 'opencode:open-external-link'
+export const EXTERNAL_LINK_MESSAGE_TYPE = 't3code:open-external-link'
 
 function toHttpUrl(value: string): string | null {
   try {

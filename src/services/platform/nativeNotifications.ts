@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { Preferences } from '@capacitor/preferences'
 
-export const WEB_NOTIFICATION_MESSAGE_TYPE = 'opencode:web-notification'
+export const WEB_NOTIFICATION_MESSAGE_TYPE = 't3code:web-notification'
 
 type WebNotificationDetail = {
   type?: unknown
@@ -13,9 +13,9 @@ type WebNotificationDetail = {
   silent?: unknown
 }
 
-const CHANNEL_ID = 'opencode-web-notifications'
+const CHANNEL_ID = 't3code-web-notifications'
 const MAX_ANDROID_NOTIFICATION_ID = 2147483647
-const SETTINGS_KEY = 'opencode_native_notifications'
+const SETTINGS_KEY = 't3code_native_notifications'
 
 let channelCreated = false
 let nextNotificationId = Math.max(1, Date.now() % MAX_ANDROID_NOTIFICATION_ID)
@@ -47,8 +47,8 @@ async function ensureNotificationChannel(): Promise<void> {
 
   await LocalNotifications.createChannel({
     id: CHANNEL_ID,
-    name: 'OpenCode web notifications',
-    description: 'Notifications emitted by the connected OpenCode web UI.',
+    name: 'T3 Code web notifications',
+    description: 'Notifications emitted by the connected T3 Code web UI.',
     importance: 4,
     visibility: 0,
     vibration: true,
@@ -142,12 +142,12 @@ export async function getNativeNotificationDecision(): Promise<NotificationDecis
 
 export async function emitNativeNotificationFromWebMessage(
   detail: unknown,
-  fallbackTitle = 'OpenCode',
+  fallbackTitle = 'T3 Code',
 ): Promise<void> {
   const message = asRecord(detail)
   if (!message || message.type !== WEB_NOTIFICATION_MESSAGE_TYPE) return
 
-  const title = cleanText(message.title) || fallbackTitle || 'OpenCode'
+  const title = cleanText(message.title) || fallbackTitle || 'T3 Code'
   const body = cleanText(message.body)
   if (!title && !body) return
   if (!(await hasNotificationPermission())) return
@@ -163,7 +163,7 @@ export async function emitNativeNotificationFromWebMessage(
       largeBody: body || undefined,
       channelId: CHANNEL_ID,
       extra: {
-        source: 'opencode-webview',
+        source: 't3code-webview',
         tag: tag || undefined,
         icon: icon || undefined,
         silent: Boolean(message.silent),

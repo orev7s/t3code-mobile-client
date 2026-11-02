@@ -107,7 +107,7 @@ if (releaseTasksRequested) {
 }
 
 android {
-    namespace = "com.logicedge.opencodemobile"
+    namespace = "com.logicedge.t3codemobile"
     compileSdk = compileSdkVersionValue
     signingConfigs {
         if (releaseSigningReady && releaseStoreFileExists) {
@@ -120,7 +120,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId "com.logicedge.opencodemobile"
+        applicationId "com.logicedge.t3codemobile"
         minSdkVersion minSdkVersionValue
         targetSdkVersion targetSdkVersionValue
         versionCode androidVersionCode

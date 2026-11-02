@@ -14,7 +14,7 @@ vi.mock('@capacitor/core', () => ({
   },
 }))
 
-import { checkServerHealth } from '@/services/opencode/health'
+import { checkServerHealth } from '@/services/t3code/health'
 
 describe('checkServerHealth', () => {
   beforeEach(() => {
@@ -23,30 +23,22 @@ describe('checkServerHealth', () => {
     isNativePlatform.mockReturnValue(true)
   })
 
-  it('falls back to GET on native when HEAD rejects and preserves wrong_credentials', async () => {
-    capacitorHttpRequest
-      .mockRejectedValueOnce(new Error('HEAD request failed'))
-      .mockResolvedValueOnce({ status: 401 })
+  it('reports connected for a reachable T3 Code server', async () => {
+    capacitorHttpRequest.mockResolvedValueOnce({ status: 200 })
 
     const result = await checkServerHealth({
-      baseUrl: 'http://localhost:4096',
-      username: 'opencode',
-      password: 'wrong-password',
+      baseUrl: 'http://localhost:3773',
       timeoutMs: 3500,
     })
 
     expect(capacitorHttpRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      url: 'http://localhost:4096/',
+      url: 'http://localhost:3773/',
       method: 'HEAD',
-    }))
-    expect(capacitorHttpRequest).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      url: 'http://localhost:4096/',
-      method: 'GET',
     }))
     expect(result).toEqual({
       reachable: true,
-      status: 'wrong_credentials',
-      statusCode: 401,
+      status: 'connected',
+      statusCode: 200,
     })
   })
 
@@ -56,14 +48,27 @@ describe('checkServerHealth', () => {
       .mockResolvedValueOnce({ status: 401 })
 
     const result = await checkServerHealth({
-      baseUrl: 'http://localhost:4096',
+      baseUrl: 'http://localhost:3773',
       timeoutMs: 3500,
     })
 
+    expect(capacitorHttpRequest).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      url: 'http://localhost:3773/',
+      method: 'GET',
+    }))
     expect(result).toEqual({
       reachable: true,
       status: 'auth_required',
       statusCode: 401,
     })
+  })
+
+  it('reports unreachable when the request throws', async () => {
+    capacitorHttpRequest.mockRejectedValue(new Error('connection refused'))
+
+    const result = await checkServerHealth({ baseUrl: 'http://localhost:3773' })
+
+    expect(result.reachable).toBe(false)
+    expect(result.status).toBe('unreachable')
   })
 })

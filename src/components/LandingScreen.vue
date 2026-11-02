@@ -20,10 +20,10 @@
       <div class="w-full max-w-sm flex flex-col items-center gap-6">
         <div class="text-center mb-15 mt-33">
           <picture>
-            <source srcset="/opencode-mobile-client-logo-dark.svg" media="(prefers-color-scheme: dark)">
-            <img src="/opencode-mobile-client-logo-light.svg" alt="OpenCode" class="h-17 mx-auto mb-3" />
+            <source srcset="/t3code-mobile-client-logo-dark.svg" media="(prefers-color-scheme: dark)">
+            <img src="/t3code-mobile-client-logo-light.svg" alt="T3 Code" class="h-17 mx-auto mb-3" />
           </picture>
-          <h1 class="text-2xl font-bold mb-1">OpenCode Mobile &lt;Client&gt;</h1>
+          <h1 class="text-2xl font-bold mb-1">T3 Code Mobile &lt;Client&gt;</h1>
           <p class="text-sm text-muted-foreground">{{ t('landing.tagline') }}</p>
         </div>
 
@@ -60,7 +60,7 @@
             class="w-full"
             @click="connectDefault"
           >
-            {{ defaultProfile.authEnabled ? t('landing.connectSignIn') : t('landing.connect') }}
+            {{ defaultProfile.pairingEnabled ? t('landing.connectSignIn') : t('landing.connect') }}
           </Button>
           <Button variant="outline" @click="addServer" class="mb-8">
             {{ defaultProfile ? t('landing.addAnother') : t('landing.addServer') }}
@@ -72,6 +72,13 @@
             {{ t('common.settings') }}
           </Button>
         </div>
+
+        <Card class="w-full cursor-pointer" @click="connectT3Connect" tabindex="0" @keydown.enter="connectT3Connect">
+          <CardContent class="text-center">
+            <CardTitle class="text-sm">{{ t('landing.t3connect') }}</CardTitle>
+            <CardDescription class="text-xs mt-1">{{ t('landing.t3connectHint') }}</CardDescription>
+          </CardContent>
+        </Card>
       </div>
     </div>
 
@@ -91,7 +98,7 @@ import { Card, CardContent, CardFooter, CardTitle, CardDescription } from '@/com
 import { Play } from '@lucide/vue'
 import { useServerStore } from '@/stores/serverStore'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { sanitizeUrlForDisplay } from '@/services/opencode/url'
+import { sanitizeUrlForDisplay } from '@/services/t3code/url'
 import { configureSystemBars } from '@/services/platform/systemBars'
 import { useServerHealthPoll } from '@/composables/useServerHealthPoll'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
@@ -156,6 +163,7 @@ onUnmounted(() => {
 })
 
 async function connectDefault(): Promise<void> { if (defaultProfile.value) router.push(`/connect/${defaultProfile.value.id}`) }
+function connectT3Connect(): void { router.push('/connect/hosted') }
 function addServer(): void { router.push('/servers/new') }
 function manageServers(): void { router.push('/servers') }
 function openSettings(): void { router.push('/settings') }

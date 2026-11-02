@@ -1,25 +1,31 @@
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
 
+/**
+ * Stores per-server secrets (currently the T3 Code pairing token) in platform
+ * secure storage: Android EncryptedSharedPreferences and iOS Keychain.
+ */
 export interface SecretStorageAdapter {
-  getPassword(profileId: string): Promise<string | null>
-  setPassword(profileId: string, password: string): Promise<void>
-  deletePassword(profileId: string): Promise<void>
+  getSecret(profileId: string): Promise<string | null>
+  setSecret(profileId: string, secret: string): Promise<void>
+  deleteSecret(profileId: string): Promise<void>
 }
 
+const SECRET_PREFIX = 't3code_pair_'
+
 export const secureSecretStorage: SecretStorageAdapter = {
-  async getPassword(profileId: string): Promise<string | null> {
+  async getSecret(profileId: string): Promise<string | null> {
     try {
-      return await SecureStorage.getItem(`opencode_pw_${profileId}`)
+      return await SecureStorage.getItem(`${SECRET_PREFIX}${profileId}`)
     } catch {
       return null
     }
   },
 
-  async setPassword(profileId: string, password: string): Promise<void> {
-    await SecureStorage.setItem(`opencode_pw_${profileId}`, password)
+  async setSecret(profileId: string, secret: string): Promise<void> {
+    await SecureStorage.setItem(`${SECRET_PREFIX}${profileId}`, secret)
   },
 
-  async deletePassword(profileId: string): Promise<void> {
-    await SecureStorage.remove(`opencode_pw_${profileId}`)
+  async deleteSecret(profileId: string): Promise<void> {
+    await SecureStorage.remove(`${SECRET_PREFIX}${profileId}`)
   },
 }

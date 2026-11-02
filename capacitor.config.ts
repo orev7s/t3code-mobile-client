@@ -3,11 +3,11 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.logicedge.opencodemobile',
-  appName: 'OpenCode Mobile',
+  appId: 'com.logicedge.t3codemobile',
+  appName: 'T3 Code Mobile',
   webDir: 'dist',
   server: {
-    // Intentionally broad: users connect to self-managed OpenCode servers on
+    // Intentionally broad: users connect to self-managed T3 Code servers on
     // LAN, VPN/Tailscale, or public HTTPS VPS hosts. Do not narrow this without
     // preserving those supported flows and updating store review disclosures.
     allowNavigation: [
