@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 48" width="256" height="96" role="img" aria-label="T3 Code">
+  <title>T3 Code</title>
+  <g fill="#0a0a0a">
+    <rect x="2" y="8" width="34" height="34" rx="9"/>
+    <text x="19" y="33" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="#ffffff">T3</text>
+    <text x="46" y="33" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="21" font-weight="700" letter-spacing="-0.5">Code</text>
+  </g>
+</svg>

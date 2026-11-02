@@ -1,10 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { copyFile, cp, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import sharp from 'sharp'
 
-const LIGHT_SVG = resolve('public/t3code-mobile-client-logo-light.svg')
-const DARK_SVG = resolve('public/t3code-mobile-client-logo-dark.svg')
+// The launcher icon is the official T3 Code app mark (assets/prod/logo.svg
+// upstream, served at https://app.t3.codes). The foreground file holds the T3
+// glyph alone on transparency, already inset for Android's adaptive safe zone.
+const APP_ICON_SVG = resolve('public/t3code-app-icon.svg')
+const GLYPH_SVG = resolve('public/t3code-app-icon-foreground.svg')
+
 const ASSETS_DIR = resolve('assets')
 const PUBLIC_DIR = resolve('public')
 const ICONS_DIR = resolve('icons')
@@ -12,13 +16,14 @@ const PUBLIC_ICONS_DIR = resolve('public/icons')
 const DOCS_DIR = resolve('docs')
 const ANDROID_RES = resolve('android/app/src/main/res')
 
-const BG_LIGHT = '#f1ecec'
-const BG_DARK = '#151515'
+// T3 Code's icon is a black rounded square, so the icon background is black.
+const ICON_BG = '#000000'
+const SPLASH_BG = '#000000'
 
 const ICON_SIZE = 1024
 const SPLASH_SIZE = 2732
 const APPLE_TOUCH_SIZE = 180
-const SPLASH_LOGO_MAX = 640
+const SPLASH_LOGO_MAX = 1000
 
 const FOREGROUND_DENSITIES = {
   mdpi: 108,
@@ -44,11 +49,22 @@ async function renderSvgOnBg(svgPath, targetSize, bgColor) {
     .toBuffer()
 }
 
+async function renderSvgTransparent(svgPath, targetSize) {
+  return sharp(readFileSync(svgPath))
+    .resize(targetSize, targetSize, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      kernel: sharp.kernel.lanczos3,
+    })
+    .png({ compressionLevel: 6 })
+    .toBuffer()
+}
+
 async function renderSvgCenteredOnBg(svgPath, canvasSize, logoMaxDimension, bgColor) {
   const svg = readFileSync(svgPath)
   const meta = await sharp(svg).metadata()
-  const svgWidth = meta.width ?? 360
-  const svgHeight = meta.height ?? 380
+  const svgWidth = meta.width ?? 1024
+  const svgHeight = meta.height ?? 1024
   const logoScale = logoMaxDimension / Math.max(svgWidth, svgHeight)
   const logoWidth = Math.round(svgWidth * logoScale)
   const logoHeight = Math.round(svgHeight * logoScale)
@@ -115,25 +131,31 @@ async function generateCapacitorAssetsInputs() {
   console.log('assets/icon-only.png')
   await writeFile(
     resolve(ASSETS_DIR, 'icon-only.png'),
-    await renderSvgOnBg(LIGHT_SVG, ICON_SIZE, BG_LIGHT),
+    await renderSvgOnBg(GLYPH_SVG, ICON_SIZE, ICON_BG),
   )
 
   console.log('assets/icon-background.png')
   await writeFile(
     resolve(ASSETS_DIR, 'icon-background.png'),
-    await createSolidImage(ICON_SIZE, ICON_SIZE, BG_LIGHT),
+    await createSolidImage(ICON_SIZE, ICON_SIZE, ICON_BG),
+  )
+
+  console.log('assets/icon-foreground.png')
+  await writeFile(
+    resolve(ASSETS_DIR, 'icon-foreground.png'),
+    await renderSvgTransparent(GLYPH_SVG, ICON_SIZE),
   )
 
   console.log('assets/splash.png')
   await writeFile(
     resolve(ASSETS_DIR, 'splash.png'),
-    await renderSvgCenteredOnBg(LIGHT_SVG, SPLASH_SIZE, SPLASH_LOGO_MAX, BG_LIGHT),
+    await renderSvgCenteredOnBg(GLYPH_SVG, SPLASH_SIZE, SPLASH_LOGO_MAX, SPLASH_BG),
   )
 
   console.log('assets/splash-dark.png')
   await writeFile(
     resolve(ASSETS_DIR, 'splash-dark.png'),
-    await renderSvgCenteredOnBg(DARK_SVG, SPLASH_SIZE, SPLASH_LOGO_MAX, BG_DARK),
+    await renderSvgCenteredOnBg(GLYPH_SVG, SPLASH_SIZE, SPLASH_LOGO_MAX, SPLASH_BG),
   )
 }
 
@@ -141,7 +163,7 @@ async function generateStandaloneAssets() {
   console.log('public/apple-touch-icon.png')
   await writeFile(
     resolve(PUBLIC_DIR, 'apple-touch-icon.png'),
-    await renderSvgOnBg(LIGHT_SVG, APPLE_TOUCH_SIZE, BG_LIGHT),
+    await renderSvgOnBg(GLYPH_SVG, APPLE_TOUCH_SIZE, ICON_BG),
   )
 }
 
@@ -149,47 +171,52 @@ async function copyDocsAssets() {
   ensureDir(DOCS_DIR)
   const files = [
     'favicon.svg',
+    't3code-app-icon.svg',
     't3code-mobile-client-logo-dark.svg',
     't3code-mobile-client-logo-light.svg',
   ]
   for (const file of files) {
     const src = resolve(PUBLIC_DIR, file)
+    if (!existsSync(src)) continue
     const dest = resolve(DOCS_DIR, file)
     await copyFile(src, dest)
     console.log(`docs/${file}`)
   }
-  const installBadges = [
-    'img/install_google_play_color_light.png',
-    'img/install_app_store_color_light.png',
-    'img/install_vscode_color_light.png',
-  ]
-  for (const file of installBadges) {
-    const src = resolve(PUBLIC_DIR, file)
-    if (!existsSync(src)) continue
-    const dest = resolve(DOCS_DIR, file.split('/').pop())
-    await copyFile(src, dest)
-    console.log(`docs/${file.split('/').pop()}`)
+}
+
+async function generateAdaptiveIconForegrounds() {
+  for (const [density, size] of Object.entries(FOREGROUND_DENSITIES)) {
+    const dir = resolve(ANDROID_RES, `mipmap-${density}`)
+    if (!existsSync(dir)) continue
+
+    console.log(`mipmap-${density}/ic_launcher_foreground.png`)
+    await writeFile(
+      resolve(dir, 'ic_launcher_foreground.png'),
+      await renderSvgTransparent(GLYPH_SVG, size),
+    )
   }
 }
 
-async function generateAdaptiveIconForegrounds(svgPath) {
-  const svg = readFileSync(svgPath)
+/**
+ * capacitor-assets wraps both adaptive layers in a 16.7% inset, which leaves a
+ * transparent (white) ring around our full-bleed background. Rewrite the layer
+ * list so the background fills the whole 108dp canvas.
+ */
+function fixAdaptiveIconXml() {
+  const dir = resolve(ANDROID_RES, 'mipmap-anydpi-v26')
+  if (!existsSync(dir)) return
 
-  for (const [density, size] of Object.entries(FOREGROUND_DENSITIES)) {
-    const outputPath = resolve(ANDROID_RES, `mipmap-${density}`, 'ic_launcher_foreground.png')
-    if (!existsSync(resolve(ANDROID_RES, `mipmap-${density}`))) continue
-
-    console.log(`mipmap-${density}/ic_launcher_foreground.png`)
-    const image = await sharp(svg)
-      .resize(size, size, {
-        fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-        kernel: sharp.kernel.lanczos3,
-      })
-      .png({ compressionLevel: 6 })
-      .toBuffer()
-
-    await writeFile(outputPath, image)
+  const xml = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
+`
+  for (const name of ['ic_launcher.xml', 'ic_launcher_round.xml']) {
+    const file = resolve(dir, name)
+    if (!existsSync(file)) continue
+    writeFileSync(file, xml)
+    console.log(`mipmap-anydpi-v26/${name}`)
   }
 }
 
@@ -199,7 +226,8 @@ async function main() {
   if (isPostCap) {
     await moveIconsToPublic()
     fixManifestPaths()
-    await generateAdaptiveIconForegrounds(LIGHT_SVG)
+    await generateAdaptiveIconForegrounds()
+    fixAdaptiveIconXml()
     return
   }
 

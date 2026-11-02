@@ -19,10 +19,7 @@
       </svg>
       <div class="w-full max-w-sm flex flex-col items-center gap-6">
         <div class="text-center mb-15 mt-33">
-          <picture>
-            <source srcset="/t3code-mobile-client-logo-dark.svg" media="(prefers-color-scheme: dark)">
-            <img src="/t3code-mobile-client-logo-light.svg" alt="T3 Code" class="h-17 mx-auto mb-3" />
-          </picture>
+          <img src="/t3code-app-icon.svg" alt="T3 Code" class="h-17 w-17 mx-auto mb-3" />
           <h1 class="text-2xl font-bold mb-1">T3 Code Mobile &lt;Client&gt;</h1>
           <p class="text-sm text-muted-foreground">{{ t('landing.tagline') }}</p>
         </div>
